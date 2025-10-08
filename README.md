@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/openai-openai-apps-sdk-examples-badge.png)](https://mseep.ai/app/openai-openai-apps-sdk-examples)
+
 # Apps SDK Examples Gallery
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
