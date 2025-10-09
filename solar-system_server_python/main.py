@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from version import generate_widget_html
 
 MIME_TYPE = "text/html+skybridge"
 PLANETS = [
@@ -62,13 +63,7 @@ WIDGET = SolarWidget(
     template_uri="ui://widget/solar-system.html",
     invoking="Charting the solar system",
     invoked="Solar system ready",
-    html=(
-        "<div id=\"solar-system-root\"></div>\n"
-        "<link rel=\"stylesheet\" href=\"https://persistent.oaistatic.com/"
-        "ecosystem-built-assets/solar-system-0038.css\">\n"
-        "<script type=\"module\" src=\"https://persistent.oaistatic.com/"
-        "ecosystem-built-assets/solar-system-0038.js\"></script>"
-    ),
+    html=generate_widget_html("solar-system"),
     response_text="Solar system ready",
 )
 
