@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EC 商品检索 Widget</title>
+    <style>
+      :root { --bg:#0b0c10; --card:#13151a; --text:#e6e6e6; --muted:#9aa0a6; --accent:#4f8cff; }
+      body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text); }
+      .wrap { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+      .header { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+      .badge { font-size:12px; color:#fff; background:var(--accent); padding:4px 8px; border-radius:999px; }
+      .grid { display:grid; grid-template-columns: repeat( auto-fill, minmax(220px, 1fr) ); gap:12px; }
+      .card { background:var(--card); border:1px solid rgba(255,255,255,0.06); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
+      .thumb { aspect-ratio: 4/3; object-fit:cover; width:100%; background:#111; }
+      .body { padding:12px; display:flex; flex-direction:column; gap:6px; }
+      .title { font-size:14px; line-height:1.2; }
+      .price { font-weight:700; }
+      .meta { font-size:12px; color:var(--muted); display:flex; gap:8px; }
+      .actions { margin-top:auto; padding:12px; display:flex; justify-content:space-between; align-items:center; }
+      .link { text-decoration:none; color:#fff; background:transparent; border:1px solid rgba(255,255,255,0.16); border-radius:999px; padding:6px 10px; font-size:12px; }
+      .link:hover { border-color: rgba(255,255,255,0.28); }
+      .empty { color:var(--muted); padding:24px; text-align:center; border:1px dashed rgba(255,255,255,0.16); border-radius:12px; }
+      .footer { color:var(--muted); font-size:12px; margin-top:16px; text-align:right; }
+    </style>
+  </head>
+  <body>
+    <div id="ec-search-root" class="wrap">
+      <div class="header">
+        <div class="badge">EC Search</div>
+        <h3 id="q"></h3>
+      </div>
+      <div id="grid" class="grid"></div>
+      <div id="empty" class="empty" style="display:none">没有匹配的商品。</div>
+      <div class="footer">本页面可被 ChatGPT Apps SDK 通过结构化数据水合。</div>
+    </div>
+
+    <script type="module" src="./index.ts"></script>
+  </body>
+</html>
