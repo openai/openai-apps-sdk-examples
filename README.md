@@ -122,6 +122,10 @@ You will get a public URL that you can use to add your local server to ChatGPT i
 
 For example: `https://<custom_endpoint>.ngrok-free.app/mcp`
 
+### Using the MCP server in ChatGPT
+
+Once your connector is added, open ChatGPT, click the + icon, go to "More", and select your app from the list. You can invoke the app by prompting, for example, "Show me a list of pizza restaurants in San Francisco."
+
 ## Next steps
 
 - Customize the widget data: edit the handlers in `pizzaz_server_node/src`, `pizzaz_server_python/main.py`, or the solar system server to fetch data from your systems.
