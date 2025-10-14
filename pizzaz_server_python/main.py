@@ -11,11 +11,107 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List
+import re
+
+import hashlib
+from dotenv import load_dotenv
+import json
+import logging
+import os
+import time
 
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+logger = logging.getLogger(__name__)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Load .env from this server directory if present, with OS env taking precedence
+try:
+    load_dotenv(REPO_ROOT / "pizzaz_server_python" / ".env")
+except Exception:
+    pass
+ASSETS_DIR = REPO_ROOT / "assets"
+
+with (REPO_ROOT / "package.json").open("r", encoding="utf-8") as package_file:
+    _package_version = json.load(package_file)["version"]
+
+DEFAULT_ASSET_HASH = hashlib.sha256(_package_version.encode("utf-8")).hexdigest()[:4]
+
+
+def _discover_asset_hash() -> str | None:
+    try:
+        candidates = sorted(
+            ASSETS_DIR.glob("*.js"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+    except FileNotFoundError:
+        return None
+    except OSError as exc:  # pragma: no cover
+        logger.warning("Failed to scan assets directory for hash: %s", exc)
+        return None
+
+    pattern = re.compile(r"^[a-z0-9-]+-([0-9a-f]{4})\.js$")
+    for candidate in candidates:
+        match = pattern.match(candidate.name)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _get_env(key: str) -> str | None:
+    return os.environ.get(key)
+
+
+# Environment variables - only these three are supported
+ENVIRONMENT = (_get_env("ENVIRONMENT") or "").strip()
+DOMAIN = (_get_env("DOMAIN") or "").strip() or None
+PORT = (_get_env("PORT") or "").strip() or None
+
+# Internal constants
+CDN_BASE = "https://persistent.oaistatic.com/ecosystem-built-assets"
+CDN_VERSION = "0038"
+
+# Determine asset serving strategy based on ENVIRONMENT and DOMAIN
+_environment = ENVIRONMENT.lower()
+_is_env_local = _environment in {"local", "dev", "development"}
+
+if DOMAIN:
+    _dev_asset_origin = DOMAIN.rstrip("/")
+elif _is_env_local:
+    _dev_asset_origin = "http://localhost:4444"
+else:
+    _dev_asset_origin = None
+
+# When using the Vite dev server (`pnpm run dev`), assets are served without the hash suffix
+_dev_asset_hashed = not _is_env_local
+
+asset_hash_override = (_get_env("ASSET_HASH") or "").strip().lower()
+_asset_hash = asset_hash_override or (_discover_asset_hash() or DEFAULT_ASSET_HASH).lower()
+
+# In dev with un-hashed assets, derive a version tag from the process start minute
+_is_dev_unhashed = bool(_dev_asset_origin) and (not _dev_asset_hashed)
+_auto_dev_version = None
+if _is_dev_unhashed:
+    # Auto-bump once per minute: dev-<base36(minutes since epoch)>
+    _auto_dev_version = f"dev-{int(time.time() // 60):x}"
+
+_template_version = (
+    _auto_dev_version
+    or _asset_hash
+).lower()
+_version_suffix = f"?v={_template_version}" if _template_version else ""
+
+# Default pizza video (public-domain fallback that does not expire).
+DEFAULT_PIZZA_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+
+VIDEO_URL_SCRIPT = f"<script>window.__PIZZAZ_VIDEO_URL__ = {json.dumps(DEFAULT_PIZZA_VIDEO_URL)};</script>"
 
 
 @dataclass(frozen=True)
@@ -29,82 +125,150 @@ class PizzazWidget:
     response_text: str
 
 
+def _inline_widget_markup(asset_name: str) -> str | None:
+    css_path = ASSETS_DIR / f"{asset_name}-{_asset_hash}.css"
+    js_path = ASSETS_DIR / f"{asset_name}-{_asset_hash}.js"
+
+    try:
+        css = css_path.read_text(encoding="utf-8")
+        js = js_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError as exc:  # pragma: no cover
+        logger.warning("Failed to load local assets for %s (%s)", asset_name, exc)
+        return None
+
+    extra = VIDEO_URL_SCRIPT if asset_name == "pizzaz-video" else ""
+
+    return (
+        f'<div id="{asset_name}-root"></div>\n'
+        f"<style>\n{css}\n</style>\n"
+        f"<script type=\"module\">\n{js}\n</script>\n"
+        f"{extra}"
+    )
+
+
+def _cdn_widget_markup(asset_name: str) -> str:
+    extra = VIDEO_URL_SCRIPT if asset_name == "pizzaz-video" else ""
+
+    return (
+        f'<div id="{asset_name}-root"></div>\n'
+        f'<link rel="stylesheet" href="{CDN_BASE}/{asset_name}-{CDN_VERSION}.css">\n'
+        f'<script type="module" src="{CDN_BASE}/{asset_name}-{CDN_VERSION}.js"></script>\n'
+        f"{extra}"
+    )
+
+
+def _dev_hosted_widget_markup(asset_name: str) -> str | None:
+    if not _dev_asset_origin:
+        return None
+
+    # Only serve from the dev origin if a corresponding entry exists under src/
+    # This avoids emitting broken links for widgets that rely on CDN-only assets.
+    src_dir = REPO_ROOT / "src" / asset_name
+    if not src_dir.exists():
+        return None
+
+    hash_segment = f"-{_asset_hash}" if _dev_asset_hashed else ""
+    css_href = f"{_dev_asset_origin}/{asset_name}{hash_segment}.css"
+    js_src = f"{_dev_asset_origin}/{asset_name}{hash_segment}.js"
+
+    extra = VIDEO_URL_SCRIPT if asset_name == "pizzaz-video" else ""
+
+    return (
+        f'<div id="{asset_name}-root"></div>\n'
+        f'<link rel="stylesheet" href="{css_href}">\n'
+        f'<script type="module" src="{js_src}"></script>\n'
+        f"{extra}"
+    )
+
+
+def _build_widget_markup(asset_name: str) -> str:
+    dev_markup = _dev_hosted_widget_markup(asset_name)
+    if dev_markup is not None:
+        logger.info("Serving %s from dev asset origin %s", asset_name, _dev_asset_origin)
+        return dev_markup
+
+    if not ENVIRONMENT:
+        logger.info(
+            "No ENVIRONMENT specified; falling back to CDN assets for %s",
+            asset_name,
+        )
+        return _cdn_widget_markup(asset_name)
+
+    inline = _inline_widget_markup(asset_name)
+    if inline is not None:
+        return inline
+
+    logger.info(
+        "Using CDN assets for %s (no matching local assets for hash %s in %s)",
+        asset_name,
+        _asset_hash,
+        ASSETS_DIR,
+    )
+    return _cdn_widget_markup(asset_name)
+
+
+_WIDGET_CONFIGS: List[Dict[str, str]] = [
+    {
+        "identifier": "pizza-map",
+        "title": "Show Pizza Map",
+        "template_uri_base": "ui://widget/pizza-map.html",
+        "invoking": "Hand-tossing a map",
+        "invoked": "Served a fresh map",
+        "response_text": "Rendered a pizza map!",
+        "asset_name": "pizzaz",
+    },
+    {
+        "identifier": "pizza-carousel",
+        "title": "Show Pizza Carousel",
+        "template_uri_base": "ui://widget/pizza-carousel.html",
+        "invoking": "Carousel some spots",
+        "invoked": "Served a fresh carousel",
+        "response_text": "Rendered a pizza carousel!",
+        "asset_name": "pizzaz-carousel",
+    },
+    {
+        "identifier": "pizza-albums",
+        "title": "Show Pizza Album",
+        "template_uri_base": "ui://widget/pizza-albums.html",
+        "invoking": "Hand-tossing an album",
+        "invoked": "Served a fresh album",
+        "response_text": "Rendered a pizza album!",
+        "asset_name": "pizzaz-albums",
+    },
+    {
+        "identifier": "pizza-list",
+        "title": "Show Pizza List",
+        "template_uri_base": "ui://widget/pizza-list.html",
+        "invoking": "Hand-tossing a list",
+        "invoked": "Served a fresh list",
+        "response_text": "Rendered a pizza list!",
+        "asset_name": "pizzaz-list",
+    },
+    {
+        "identifier": "pizza-video",
+        "title": "Show Pizza Video",
+        "template_uri_base": "ui://widget/pizza-video.html",
+        "invoking": "Hand-tossing a video",
+        "invoked": "Served a fresh video",
+        "response_text": "Rendered a pizza video!",
+        "asset_name": "pizzaz-video",
+    },
+]
+
+
 widgets: List[PizzazWidget] = [
     PizzazWidget(
-        identifier="pizza-map",
-        title="Show Pizza Map",
-        template_uri="ui://widget/pizza-map.html",
-        invoking="Hand-tossing a map",
-        invoked="Served a fresh map",
-        html=(
-            "<div id=\"pizzaz-root\"></div>\n"
-            "<link rel=\"stylesheet\" href=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-0038.css\">\n"
-            "<script type=\"module\" src=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-0038.js\"></script>"
-        ),
-        response_text="Rendered a pizza map!",
-    ),
-    PizzazWidget(
-        identifier="pizza-carousel",
-        title="Show Pizza Carousel",
-        template_uri="ui://widget/pizza-carousel.html",
-        invoking="Carousel some spots",
-        invoked="Served a fresh carousel",
-        html=(
-            "<div id=\"pizzaz-carousel-root\"></div>\n"
-            "<link rel=\"stylesheet\" href=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-carousel-0038.css\">\n"
-            "<script type=\"module\" src=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-carousel-0038.js\"></script>"
-        ),
-        response_text="Rendered a pizza carousel!",
-    ),
-    PizzazWidget(
-        identifier="pizza-albums",
-        title="Show Pizza Album",
-        template_uri="ui://widget/pizza-albums.html",
-        invoking="Hand-tossing an album",
-        invoked="Served a fresh album",
-        html=(
-            "<div id=\"pizzaz-albums-root\"></div>\n"
-            "<link rel=\"stylesheet\" href=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-albums-0038.css\">\n"
-            "<script type=\"module\" src=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-albums-0038.js\"></script>"
-        ),
-        response_text="Rendered a pizza album!",
-    ),
-    PizzazWidget(
-        identifier="pizza-list",
-        title="Show Pizza List",
-        template_uri="ui://widget/pizza-list.html",
-        invoking="Hand-tossing a list",
-        invoked="Served a fresh list",
-        html=(
-            "<div id=\"pizzaz-list-root\"></div>\n"
-            "<link rel=\"stylesheet\" href=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-list-0038.css\">\n"
-            "<script type=\"module\" src=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-list-0038.js\"></script>"
-        ),
-        response_text="Rendered a pizza list!",
-    ),
-    PizzazWidget(
-        identifier="pizza-video",
-        title="Show Pizza Video",
-        template_uri="ui://widget/pizza-video.html",
-        invoking="Hand-tossing a video",
-        invoked="Served a fresh video",
-        html=(
-            "<div id=\"pizzaz-video-root\"></div>\n"
-            "<link rel=\"stylesheet\" href=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-video-0038.css\">\n"
-            "<script type=\"module\" src=\"https://persistent.oaistatic.com/"
-            "ecosystem-built-assets/pizzaz-video-0038.js\"></script>"
-        ),
-        response_text="Rendered a pizza video!",
-    ),
+        identifier=config["identifier"],
+        title=config["title"],
+        template_uri=f"{config['template_uri_base']}{_version_suffix}",
+        invoking=config["invoking"],
+        invoked=config["invoked"],
+        html=_build_widget_markup(config["asset_name"]),
+        response_text=config["response_text"],
+    )
+    for config in _WIDGET_CONFIGS
 ]
 
 
@@ -160,20 +324,22 @@ def _tool_meta(widget: PizzazWidget) -> Dict[str, Any]:
         "annotations": {
           "destructiveHint": False,
           "openWorldHint": False,
-          "readOnlyHint": True,
+          "readOnlyHint": True
         }
     }
 
 
 def _embedded_widget_resource(widget: PizzazWidget) -> types.EmbeddedResource:
+    # Some typed clients expect AnyUrl; cast string to the expected type at runtime
+    text_contents = types.TextResourceContents(
+        uri=widget.template_uri,  # type: ignore[arg-type]
+        mimeType=MIME_TYPE,
+        text=widget.html,
+    )
+    # EmbeddedResource in latest FastMCP generally takes (type, resource)
     return types.EmbeddedResource(
         type="resource",
-        resource=types.TextResourceContents(
-            uri=widget.template_uri,
-            mimeType=MIME_TYPE,
-            text=widget.html,
-            title=widget.title,
-        ),
+        resource=text_contents,
     )
 
 
@@ -196,8 +362,7 @@ async def _list_resources() -> List[types.Resource]:
     return [
         types.Resource(
             name=widget.title,
-            title=widget.title,
-            uri=widget.template_uri,
+            uri=widget.template_uri,  # type: ignore[arg-type]
             description=_resource_description(widget),
             mimeType=MIME_TYPE,
             _meta=_tool_meta(widget),
@@ -211,8 +376,7 @@ async def _list_resource_templates() -> List[types.ResourceTemplate]:
     return [
         types.ResourceTemplate(
             name=widget.title,
-            title=widget.title,
-            uriTemplate=widget.template_uri,
+            uriTemplate=widget.template_uri,  # type: ignore[arg-type]
             description=_resource_description(widget),
             mimeType=MIME_TYPE,
             _meta=_tool_meta(widget),
@@ -231,16 +395,18 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
             )
         )
 
-    contents = [
+    contents: List[types.TextResourceContents | types.BlobResourceContents] = [
         types.TextResourceContents(
-            uri=widget.template_uri,
+            uri=widget.template_uri,  # type: ignore[arg-type]
             mimeType=MIME_TYPE,
             text=widget.html,
             _meta=_tool_meta(widget),
         )
     ]
 
-    return types.ServerResult(types.ReadResourceResult(contents=contents))
+    return types.ServerResult(
+        types.ReadResourceResult(contents=contents)  # type: ignore[arg-type]
+    )
 
 
 async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
@@ -321,5 +487,8 @@ except Exception:
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    try:
+        _port = int(PORT or "8000")
+    except Exception:
+        _port = 8000
+    uvicorn.run(app, host="0.0.0.0", port=_port)
