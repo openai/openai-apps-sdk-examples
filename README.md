@@ -92,7 +92,7 @@ pnpm start
 python -m venv .venv
 source .venv/bin/activate
 pip install -r pizzaz_server_python/requirements.txt
-uvicorn pizzaz_server_python.main:app --port 8000
+uv run uvicorn pizzaz_server_python.main:app --port 8000
 ```
 
 ### Solar system Python server
@@ -101,10 +101,10 @@ uvicorn pizzaz_server_python.main:app --port 8000
 python -m venv .venv
 source .venv/bin/activate
 pip install -r solar-system_server_python/requirements.txt
-uvicorn solar-system_server_python.main:app --port 8000
+uv run uvicorn solar-system_server_python.main:app --port 8000
 ```
 
-You can reuse the same virtual environment for all Python servers—install the dependencies once and run whichever entry point you need.
+**Important**: Python servers must be run from the project root directory using the module path format (e.g., `pizzaz_server_python.main:app`), not from within their own directories. You can reuse the same virtual environment for all Python servers—install the dependencies once and run whichever entry point you need.
 
 ## Testing in ChatGPT
 

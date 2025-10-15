@@ -3,8 +3,7 @@ import react from "@vitejs/plugin-react";
 import fg from "fast-glob";
 import path from "path";
 import fs from "fs";
-import crypto from "crypto";
-import pkg from "./package.json" with { type: "json" };
+import { getVersionHash } from "./src/version.js";
 import tailwindcss from "@tailwindcss/vite";
 
 const entries = fg.sync("src/**/index.{tsx,jsx}");
@@ -145,11 +144,7 @@ const outputs = fs
 
 const renamed = [];
 
-const h = crypto
-  .createHash("sha256")
-  .update(pkg.version, "utf8")
-  .digest("hex")
-  .slice(0, 4);
+const h = getVersionHash();
 
 console.group("Hashing outputs");
 for (const out of outputs) {
