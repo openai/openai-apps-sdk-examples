@@ -4,9 +4,34 @@ import useEmblaCarousel from "embla-carousel-react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import markers from "../pizzaz/markers.json";
 import PlaceCard from "./PlaceCard";
+import { computePriceRange } from "../utils/price-range";
 
 function App() {
-  const places = markers?.places || [];
+  const menuItems = (markers?.places ?? []).flatMap((place) => {
+    const priceRange = computePriceRange(place.menu ?? []);
+    return (place.menu ?? []).map((item) => ({
+      ...item,
+      toppings: (item.toppings ?? []).map((topping) => topping.trim()).filter(Boolean),
+      restaurant: {
+        id: place.id,
+        name: place.name,
+        city: place.city,
+        rating: place.rating,
+        priceRange,
+        thumbnail: item.image ?? place.thumbnail,
+        description: place.description
+      }
+    }));
+  });
+
+  const sortedItems = [...menuItems].sort((a, b) => {
+    const ratingA = a.restaurant?.rating ?? 0;
+    const ratingB = b.restaurant?.rating ?? 0;
+    if (ratingA === ratingB) {
+      return (a.name || "").localeCompare(b.name || "");
+    }
+    return ratingB - ratingA;
+  });
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "center",
     loop: false,
@@ -36,8 +61,8 @@ function App() {
     <div className="antialiased relative w-full text-black py-5 bg-white">
       <div className="overflow-hidden" ref={emblaRef}>
         <div className="flex gap-4 max-sm:mx-5 items-stretch">
-          {places.map((place) => (
-            <PlaceCard key={place.id} place={place} />
+          {sortedItems.map((item) => (
+            <PlaceCard key={item.id} item={item} />
           ))}
         </div>
       </div>

@@ -1,6 +1,6 @@
-# Pizzaz MCP server (Python)
+# Pizzaz MCP Server (Python)
 
-This directory packages a Python implementation of the Pizzaz demo server using the `FastMCP` helper from the official Model Context Protocol SDK. It mirrors the Node example and exposes each pizza widget as both a resource and a tool.
+This directory packages a Python implementation of the Pizzaz demo server using the `FastMCP` helper from the official Model Context Protocol SDK. It mirrors the Node example and exposes each pizza widget as both a resource and a tool while sharing configuration through a local `.env` file and falling back to the published CDN bundles when needed.
 
 ## Prerequisites
 
@@ -10,6 +10,12 @@ This directory packages a Python implementation of the Pizzaz demo server using 
 ## Installation
 
 ```bash
+# Windows
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# Unix/Mac
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -22,7 +28,7 @@ pip install -r requirements.txt
 > other project, run `pip uninstall modelcontextprotocol` before reinstalling
 > the requirements.
 
-## Run the server
+## Run the Server
 
 ```bash
 python main.py
@@ -33,7 +39,34 @@ This boots a FastAPI app with uvicorn on `http://127.0.0.1:8000` (equivalently `
 - `GET /mcp` exposes the SSE stream.
 - `POST /mcp/messages?sessionId=...` accepts follow-up messages for an active session.
 
-Cross-origin requests are allowed so you can drive the server from local tooling or the MCP Inspector. Each tool returns structured content that echoes the requested topping plus metadata that points to the correct Skybridge widget shell, matching the original Pizzaz documentation.
+Cross-origin requests are allowed so you can drive the server from local tooling or the MCP Inspector. The process loads configuration from `.env` in this directory. Update it to control asset origin and port selection, for example:
+
+```env
+# Use the Vite dev server started in the repo root with `pnpm run dev`
+ENVIRONMENT=local
+
+# After `pnpm run build && pnpm run serve`, point to the static bundles
+# ENVIRONMENT=production
+# DOMAIN=http://localhost:4444
+
+# Change the default port (defaults to 8000)
+# PORT=8123
+```
+
+- When `ENVIRONMENT=local`, widgets hydrate from the running Vite dev server without hashed filenames.
+- When `ENVIRONMENT=production` alongside a `DOMAIN`, widgets load from your local static server.
+- When `ENVIRONMENT` is omitted entirely, the server now defaults to the CDN assets (version `0038`) just like the Node implementation.
+- Each tool response includes confirmation text, structured JSON echoing the requested topping, and `_meta.openai/outputTemplate` metadata for the Skybridge widget.
+
+Prefer a cross-platform launcher? After activating the environment you can run:
+
+```bash
+pnpm start:pizzaz-python
+```
+
+## Hot-swap reminder
+
+Whenever you switch the server mode (dev/static/CDN), tweak `.env`, or rebuild assets, refresh your ChatGPT connector instead of deleting it: **Settings → Apps & Connectors → [your app] → Actions → Refresh app**. ChatGPT keeps the same MCP endpoint and reloads widget templates in place. The main [README](../README.md#hot-swap-modes-without-reconnecting) has a concise cheat sheet plus VM guidance.
 
 ## Next steps
 
@@ -42,3 +75,8 @@ Use these handlers as a starting point when wiring in real data, authentication,
 1. Register reusable UI resources that load static HTML bundles.
 2. Associate tools with those widgets via `_meta.openai/outputTemplate`.
 3. Ship structured JSON alongside human-readable confirmation text.
+
+See main [README.md](../README.md) for:
+- Testing in ChatGPT
+- Architecture overview
+- Advanced configuration

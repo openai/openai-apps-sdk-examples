@@ -6,9 +6,26 @@
       "coords": [-122.4098, 37.8001],
       "description": "Award‑winning Neapolitan pies in North Beach.",
       "city": "North Beach",
-      "rating": 4.8,
-      "price": "$$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-1.png"
+  "rating": 4.8,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-1.png",
+      "menu": [
+        {
+          "id": "nova-slice-supernova-margherita",
+          "name": "Supernova Margherita",
+          "description": "San Marzano tomatoes, fior di latte, basil oil swirl.",
+          "price": "$18",
+          "toppings": ["margherita", "basil", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-1.png"
+        },
+        {
+          "id": "nova-slice-black-garlic-burrata",
+          "name": "Black Garlic Burrata",
+          "description": "Burrata, roasted garlic crema, truffle drizzle.",
+          "price": "$20",
+          "toppings": ["burrata", "truffle", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-4.png"
+        }
+      ]
     },
     {
       "id": "midnight-marinara",
@@ -16,9 +33,26 @@
       "coords": [-122.4093, 37.7990],
       "description": "Focaccia‑style squares, late‑night favorite.",
       "city": "North Beach",
-      "rating": 4.6,
-      "price": "$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-2.png"
+  "rating": 4.6,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-2.png",
+      "menu": [
+        {
+          "id": "midnight-pepperoni-crunch",
+          "name": "Midnight Pepperoni Crunch",
+          "description": "Crispy pepperoni cups, marinara, midnight spice blend.",
+          "price": "$16",
+          "toppings": ["pepperoni", "marinara", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-2.png"
+        },
+        {
+          "id": "firefly-funghi",
+          "name": "Firefly Funghi",
+          "description": "Charred wild mushrooms, truffle cream, smoked salt.",
+          "price": "$17",
+          "toppings": ["mushroom", "truffle", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-3.png"
+        }
+      ]
     },
     {
       "id": "cinder-oven-co",
@@ -26,9 +60,26 @@
       "coords": [-122.4255, 37.7613],
       "description": "Thin‑crust classics on 18th Street.",
       "city": "Mission",
-      "rating": 4.5,
-      "price": "$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-3.png"
+  "rating": 4.5,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-3.png",
+      "menu": [
+        {
+          "id": "cinder-crispy-diavola",
+          "name": "Crispy Diavola",
+          "description": "Spicy sausage, pickled peppers, charred crust.",
+          "price": "$17",
+          "toppings": ["sausage", "pepperoni", "marinara"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-5.png"
+        },
+        {
+          "id": "cinder-garden-spinach",
+          "name": "Garden Spinach",
+          "description": "Garlic spinach, roasted mushrooms, parmesan snow.",
+          "price": "$15",
+          "toppings": ["spinach", "mushroom", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png"
+        }
+      ]
     },
     {
       "id": "neon-crust-works",
@@ -36,9 +87,26 @@
       "coords": [-122.4388, 37.7775],
       "description": "Deep‑dish and cornmeal crust favorites.",
       "city": "Alamo Square",
-      "rating": 4.5,
-      "price": "$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png"
+  "rating": 4.5,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png",
+      "menu": [
+        {
+          "id": "neon-lava-pepperoni",
+          "name": "Lava Pepperoni",
+          "description": "Cornmeal deep dish, molten four-cheese blend.",
+          "price": "$22",
+          "toppings": ["deep-dish", "pepperoni", "four-cheese"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-2.png"
+        },
+        {
+          "id": "neon-smokehouse-sausage",
+          "name": "Smokehouse Sausage",
+          "description": "Smoked provolone, fennel sausage, caramelized onions.",
+          "price": "$21",
+          "toppings": ["sausage", "four-cheese", "deep-dish"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-5.png"
+        }
+      ]
     },
     {
       "id": "luna-pie-collective",
@@ -46,9 +114,26 @@
       "coords": [-122.4077, 37.7990],
       "description": "Wood‑fired pies and burrata in North Beach.",
       "city": "North Beach",
-      "rating": 4.6,
-      "price": "$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-4.png"
+  "rating": 4.6,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-4.png",
+      "menu": [
+        {
+          "id": "luna-moonlight-burrata",
+          "name": "Moonlight Burrata",
+          "description": "Burrata, lemon zest, basil pistou.",
+          "price": "$19",
+          "toppings": ["burrata", "basil", "white"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-4.png"
+        },
+        {
+          "id": "luna-harvest-white",
+          "name": "Harvest White",
+          "description": "Charred corn, whipped ricotta, chili honey.",
+          "price": "$18",
+          "toppings": ["white", "mozzarella", "seasonal"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-1.png"
+        }
+      ]
     },
     {
       "id": "bricklight-deep-dish",
@@ -56,9 +141,26 @@
       "coords": [-122.4097, 37.7992],
       "description": "Chicago‑style pies from Tony Gemignani.",
       "city": "North Beach",
-      "rating": 4.4,
-      "price": "$$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-5.png"
+  "rating": 4.4,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-5.png",
+      "menu": [
+        {
+          "id": "bricklight-heritage-spinach",
+          "name": "Heritage Spinach",
+          "description": "Layered spinach, artichoke cream, parmesan crust.",
+          "price": "$23",
+          "toppings": ["spinach", "deep-dish", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png"
+        },
+        {
+          "id": "bricklight-classic-sausage",
+          "name": "Classic Sausage",
+          "description": "Sausage crumble, caramelized onions, roasted peppers.",
+          "price": "$24",
+          "toppings": ["sausage", "pepperoni", "deep-dish"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-5.png"
+        }
+      ]
     },
     {
       "id": "garden-ember-pies",
@@ -66,9 +168,26 @@
       "coords": [-122.4380, 37.7722],
       "description": "Neighborhood spot with seasonal toppings.",
       "city": "Lower Haight",
-      "rating": 4.4,
-      "price": "$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-1.png"
+  "rating": 4.4,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-1.png",
+      "menu": [
+        {
+          "id": "garden-greenmarket",
+          "name": "Greenmarket",
+          "description": "Roasted seasonal vegetables, basil pesto, mozzarella.",
+          "price": "$17",
+          "toppings": ["veggie", "seasonal", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-1.png"
+        },
+        {
+          "id": "garden-forest-mushroom",
+          "name": "Forest Mushroom",
+          "description": "Wild mushrooms, smoked gouda, thyme butter.",
+          "price": "$18",
+          "toppings": ["mushroom", "spinach", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-3.png"
+        }
+      ]
     },
     {
       "id": "atlas-fire-pizzeria",
@@ -76,9 +195,26 @@
       "coords": [-122.4123, 37.7899],
       "description": "Sourdough, wood‑fired pies near Nob Hill.",
       "city": "Nob Hill",
-      "rating": 4.6,
-      "price": "$$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-2.png"
+  "rating": 4.6,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-2.png",
+      "menu": [
+        {
+          "id": "atlas-summit-sourdough",
+          "name": "Summit Sourdough",
+          "description": "Naturally leavened crust, marinated tomatoes, basil.",
+          "price": "$19",
+          "toppings": ["sourdough", "margherita", "basil"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-2.png"
+        },
+        {
+          "id": "atlas-prosciutto-lift",
+          "name": "Prosciutto Lift",
+          "description": "Prosciutto ribbons, arugula, lemon oil.",
+          "price": "$21",
+          "toppings": ["prosciutto", "sourdough", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png"
+        }
+      ]
     },
     {
       "id": "circuit-slice-garage",
@@ -86,9 +222,26 @@
       "coords": [-122.4135, 37.7805],
       "description": "Crispy‑edged Detroit‑style in SoMa.",
       "city": "SoMa",
-      "rating": 4.5,
-      "price": "$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-3.png"
+  "rating": 4.5,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-3.png",
+      "menu": [
+        {
+          "id": "circuit-turbo-detroit",
+          "name": "Turbo Detroit",
+          "description": "Triple cheese frico edge, spicy pepperoni oil.",
+          "price": "$20",
+          "toppings": ["detroit", "pepperoni", "four-cheese"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-3.png"
+        },
+        {
+          "id": "circuit-truffle-drive",
+          "name": "Truffle Drive",
+          "description": "Truffle cream, Yukon potatoes, crispy shallots.",
+          "price": "$21",
+          "toppings": ["truffle", "four-cheese", "mozzarella"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-5.png"
+        }
+      ]
     },
     {
       "id": "velvet-mozza-lounge",
@@ -96,9 +249,26 @@
       "coords": [-122.4019, 37.7818],
       "description": "Bianca pies and cocktails near Yerba Buena.",
       "city": "Yerba Buena",
-      "rating": 4.3,
-      "price": "$$",
-      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png"
+  "rating": 4.3,
+      "thumbnail": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png",
+      "menu": [
+        {
+          "id": "velvet-satin-bianca",
+          "name": "Satin Bianca",
+          "description": "White sauce, mozzarella cloud, chive oil.",
+          "price": "$18",
+          "toppings": ["bianca", "mozzarella", "white"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-6.png"
+        },
+        {
+          "id": "velvet-prosciutto-fizz",
+          "name": "Prosciutto Fizz",
+          "description": "Prosciutto, whipped mascarpone, pink peppercorn.",
+          "price": "$19",
+          "toppings": ["prosciutto", "mozzarella", "truffle"],
+          "image": "https://persistent.oaistatic.com/pizzaz/pizzaz-4.png"
+        }
+      ]
     }
   ]
 }
