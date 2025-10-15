@@ -72,10 +72,16 @@ export default function App() {
     requestAnimationFrame(() => mapObj.current.resize());
 
     // or keep it in sync with window resizes
-    window.addEventListener("resize", mapObj.current.resize);
+    const handleResize = () => {
+      if (mapObj.current) {
+        mapObj.current.resize();
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener("resize", mapObj.current.resize);
+      window.removeEventListener("resize", handleResize);
       mapObj.current.remove();
     };
     // eslint-disable-next-line
@@ -242,7 +248,7 @@ export default function App() {
         >
           <div
             ref={mapRef}
-            className="w-full h-full absolute bottom-0 left-0 right-0"
+            className="absolute inset-0 w-full h-full"
             style={{
               maxHeight,
               height: displayMode === "fullscreen" ? maxHeight : undefined,

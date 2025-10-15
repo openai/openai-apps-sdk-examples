@@ -145,9 +145,11 @@ const outputs = fs
 
 const renamed = [];
 
+const buildSalt = process.env.BUILD_SALT ?? new Date().toISOString();
+
 const h = crypto
   .createHash("sha256")
-  .update(pkg.version, "utf8")
+  .update(`${pkg.version}:${buildSalt}`, "utf8")
   .digest("hex")
   .slice(0, 4);
 
@@ -172,25 +174,47 @@ for (const name of builtNames) {
   const cssPath = path.join(dir, `${name}-${h}.css`);
   const jsPath = path.join(dir, `${name}-${h}.js`);
 
-  const css = fs.existsSync(cssPath)
-    ? fs.readFileSync(cssPath, { encoding: "utf8" })
-    : "";
-  const js = fs.existsSync(jsPath)
-    ? fs.readFileSync(jsPath, { encoding: "utf8" })
-    : "";
+  const cssHref = fs.existsSync(cssPath)
+    ? `/${path.basename(cssPath)}?v=${h}`
+    : undefined;
+  const jsSrc = fs.existsSync(jsPath)
+    ? `/${path.basename(jsPath)}?v=${h}`
+    : undefined;
 
-  const cssBlock = css ? `\n  <style>\n${css}\n  </style>\n` : "";
-  const jsBlock = js ? `\n  <script type="module">\n${js}\n  </script>` : "";
+  const extraScript = name === "pizzaz-video"
+    ? "\n  <script>window.__PIZZAZ_VIDEO_URL__ = \"https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4\";<\\/script>"
+    : "";
 
   const html = [
     "<!doctype html>",
     "<html>",
-    `<head>${cssBlock}</head>`,
+    "<head>",
+    cssHref ? `  <link rel=\"stylesheet\" href=\"${cssHref}\">` : "",
+    "</head>",
     "<body>",
-    `  <div id="${name}-root"></div>${jsBlock}`,
+    `  <div id=\"${name}-root\"></div>`,
+    jsSrc ? `  <script type=\"module\" src=\"${jsSrc}\"></script>` : "",
+    extraScript,
     "</body>",
     "</html>",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   fs.writeFileSync(htmlPath, html, { encoding: "utf8" });
   console.log(`${htmlPath} (generated)`);
+
+  const stableHtmlPath = path.join(dir, `${name}.html`);
+  fs.writeFileSync(stableHtmlPath, html, { encoding: "utf8" });
+  console.log(`${stableHtmlPath} (generated)`);
+
+  const cleanUrlDir = path.join(dir, name);
+  fs.mkdirSync(cleanUrlDir, { recursive: true });
+  const cleanUrlIndexPath = path.join(cleanUrlDir, "index.html");
+  const cleanHtml = html
+    .replace(`href="${cssHref ?? ""}"`, cssHref ? `href="${cssHref}"` : "")
+    .replace(`src="${jsSrc ?? ""}"`, jsSrc ? `src="${jsSrc}"` : "");
+
+  fs.writeFileSync(cleanUrlIndexPath, cleanHtml, { encoding: "utf8" });
+  console.log(`${cleanUrlIndexPath} (generated)`);
 }

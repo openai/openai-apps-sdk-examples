@@ -3,13 +3,100 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import os
+import json
+import time
+from dotenv import load_dotenv
 from typing import Any, Dict, List
+import re
 
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 MIME_TYPE = "text/html+skybridge"
+
+# Repo root for locating package.json if needed, and .env file
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Load .env from this server directory if present; OS env takes precedence
+try:
+    load_dotenv(REPO_ROOT / "solar-system_server_python" / ".env")
+except Exception:
+    pass
+
+# Asset configuration mirrors the Pizzaz servers
+CDN_BASE = "https://persistent.oaistatic.com/ecosystem-built-assets"
+CDN_VERSION = "0038"
+
+
+def _get_env(key: str) -> str | None:
+    return os.environ.get(key)
+
+
+# Environment variables - only these three are supported
+ENVIRONMENT = (_get_env("ENVIRONMENT") or "").strip()
+DOMAIN = (_get_env("DOMAIN") or "").strip() or None
+PORT = (_get_env("PORT") or "").strip() or None
+
+# Compute a default 4-char asset hash from package version
+ASSETS_DIR = REPO_ROOT / "assets"
+try:
+    with (REPO_ROOT / "package.json").open("r", encoding="utf-8") as _pkg:
+        _version = json.load(_pkg)["version"]
+except Exception:
+    _version = "0.0.0"
+import hashlib
+_default_asset_hash = hashlib.sha256(_version.encode("utf-8")).hexdigest()[:4]
+
+# Determine asset serving strategy based on ENVIRONMENT and DOMAIN
+_environment = ENVIRONMENT.lower()
+_is_env_local = _environment in {"local", "dev", "development"}
+
+if DOMAIN:
+    _dev_asset_origin = DOMAIN.rstrip("/")
+elif _is_env_local:
+    _dev_asset_origin = "http://localhost:4444"
+else:
+    _dev_asset_origin = None
+
+# When using the Vite dev server (`pnpm run dev`), assets are served without the hash suffix
+_dev_asset_hashed = not _is_env_local
+
+def _discover_asset_hash() -> str | None:
+    try:
+        candidates = sorted(
+            ASSETS_DIR.glob("solar-system-*.js"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+
+    pattern = re.compile(r"^solar-system-([0-9a-f]{4})\.js$")
+    for candidate in candidates:
+        match = pattern.match(candidate.name)
+        if match:
+            return match.group(1)
+    return None
+
+
+_asset_hash = (
+    (_get_env("ASSET_HASH") or "").strip().lower()
+    or (_discover_asset_hash() or _default_asset_hash).lower()
+)
+
+# Derive a version tag from the process start minute when serving un-hashed dev assets
+_is_dev_unhashed = bool(_dev_asset_origin) and (not _dev_asset_hashed)
+_auto_dev_version = None
+if _is_dev_unhashed:
+    _auto_dev_version = f"dev-{int(time.time() // 60):x}"
+
+_template_version = (_auto_dev_version or _asset_hash).lower()
+_version_suffix = f"?v={_template_version}" if _template_version else ""
 PLANETS = [
     "Mercury",
     "Venus",
@@ -56,19 +143,63 @@ class SolarWidget:
     response_text: str
 
 
+def _inline_widget_markup() -> str | None:
+    css_path = ASSETS_DIR / f"solar-system-{_asset_hash}.css"
+    js_path = ASSETS_DIR / f"solar-system-{_asset_hash}.js"
+    try:
+        css = css_path.read_text(encoding="utf-8")
+        js = js_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+
+    return (
+        '<div id="solar-system-root"></div>\n'
+        f"<style>\n{css}\n</style>\n"
+        f"<script type=\"module\">\n{js}\n</script>"
+    )
+
+
+def _solar_widget_html() -> str:
+    # Dev origin path (optionally hashed filenames) if configured
+    if _dev_asset_origin:
+        hash_segment = f"-{_asset_hash}" if _dev_asset_hashed else ""
+        css_href = f"{_dev_asset_origin}/solar-system{hash_segment}.css"
+        js_src = f"{_dev_asset_origin}/solar-system{hash_segment}.js"
+        return (
+            '<div id="solar-system-root"></div>\n'
+            f'<link rel="stylesheet" href="{css_href}">\n'
+            f'<script type="module" src="{js_src}"></script>'
+        )
+
+    if not ENVIRONMENT:
+        return (
+            '<div id="solar-system-root"></div>\n'
+            f'<link rel="stylesheet" href="{CDN_BASE}/solar-system-{CDN_VERSION}.css">\n'
+            f'<script type="module" src="{CDN_BASE}/solar-system-{CDN_VERSION}.js"></script>'
+        )
+
+    # Inline local hashed assets when available
+    inline = _inline_widget_markup()
+    if inline is not None:
+        return inline
+
+    # CDN fallback
+    return (
+        '<div id="solar-system-root"></div>\n'
+        f'<link rel="stylesheet" href="{CDN_BASE}/solar-system-{CDN_VERSION}.css">\n'
+        f'<script type="module" src="{CDN_BASE}/solar-system-{CDN_VERSION}.js"></script>'
+    )
+
+
 WIDGET = SolarWidget(
     identifier="solar-system",
     title="Explore the Solar System",
-    template_uri="ui://widget/solar-system.html",
+    template_uri=f"ui://widget/solar-system.html{_version_suffix}",
     invoking="Charting the solar system",
     invoked="Solar system ready",
-    html=(
-        "<div id=\"solar-system-root\"></div>\n"
-        "<link rel=\"stylesheet\" href=\"https://persistent.oaistatic.com/"
-        "ecosystem-built-assets/solar-system-0038.css\">\n"
-        "<script type=\"module\" src=\"https://persistent.oaistatic.com/"
-        "ecosystem-built-assets/solar-system-0038.js\"></script>"
-    ),
+    html=_solar_widget_html(),
     response_text="Solar system ready",
 )
 
@@ -112,21 +243,18 @@ def _tool_meta(widget: SolarWidget) -> Dict[str, Any]:
         "annotations": {
           "destructiveHint": False,
           "openWorldHint": False,
-          "readOnlyHint": True,
+          "readOnlyHint": True
         }
     }
 
 
 def _embedded_widget_resource(widget: SolarWidget) -> types.EmbeddedResource:
-    return types.EmbeddedResource(
-        type="resource",
-        resource=types.TextResourceContents(
-            uri=widget.template_uri,
-            mimeType=MIME_TYPE,
-            text=widget.html,
-            title=widget.title,
-        ),
+    text_contents = types.TextResourceContents(
+        uri=widget.template_uri,  # type: ignore[arg-type]
+        mimeType=MIME_TYPE,
+        text=widget.html,
     )
+    return types.EmbeddedResource(type="resource", resource=text_contents)
 
 
 def _normalize_planet(name: str) -> str | None:
@@ -175,7 +303,7 @@ async def _list_resources() -> List[types.Resource]:
         types.Resource(
             name=WIDGET.title,
             title=WIDGET.title,
-            uri=WIDGET.template_uri,
+            uri=WIDGET.template_uri,  # type: ignore[arg-type]
             description=_resource_description(WIDGET),
             mimeType=MIME_TYPE,
             _meta=_tool_meta(WIDGET),
@@ -189,7 +317,7 @@ async def _list_resource_templates() -> List[types.ResourceTemplate]:
         types.ResourceTemplate(
             name=WIDGET.title,
             title=WIDGET.title,
-            uriTemplate=WIDGET.template_uri,
+            uriTemplate=WIDGET.template_uri,  # type: ignore[arg-type]
             description=_resource_description(WIDGET),
             mimeType=MIME_TYPE,
             _meta=_tool_meta(WIDGET),
@@ -208,16 +336,18 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
             )
         )
 
-    contents = [
+    contents: List[types.TextResourceContents | types.BlobResourceContents] = [
         types.TextResourceContents(
-            uri=WIDGET.template_uri,
+            uri=WIDGET.template_uri,  # type: ignore[arg-type]
             mimeType=MIME_TYPE,
             text=WIDGET.html,
             _meta=_tool_meta(WIDGET),
         )
     ]
 
-    return types.ServerResult(types.ReadResourceResult(contents=contents))
+    return types.ServerResult(
+        types.ReadResourceResult(contents=contents)  # type: ignore[arg-type,call-arg]
+    )
 
 
 async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
@@ -234,7 +364,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                     )
                 ],
                 isError=True,
-            )
+            )  # type: ignore[call-arg]
         )
 
     planet = _normalize_planet(payload.planet_name)
@@ -251,7 +381,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                     )
                 ],
                 isError=True,
-            )
+            )  # type: ignore[call-arg]
         )
 
     widget_resource = _embedded_widget_resource(WIDGET)
@@ -282,7 +412,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
             ],
             structuredContent=structured,
             _meta=meta,
-        )
+        )  # type: ignore[call-arg]
     )
 
 
@@ -307,5 +437,8 @@ except Exception:  # pragma: no cover - middleware is optional
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    try:
+        _port = int(PORT or "8000")
+    except Exception:
+        _port = 8000
+    uvicorn.run(app, host="0.0.0.0", port=_port)
