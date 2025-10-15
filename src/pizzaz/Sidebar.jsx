@@ -34,7 +34,7 @@ function PlaceListItem({ place, isSelected, onClick }) {
             <div className="text-xs mt-1 text-black/50 flex items-center gap-1">
               <Star className="h-3 w-3" aria-hidden="true" />
               {place.rating.toFixed(1)}
-              {place.price ? <span className="">· {place.price}</span> : null}
+              {place.priceRange ? <span className="">· {place.priceRange}</span> : null}
             </div>
           </div>
         </button>

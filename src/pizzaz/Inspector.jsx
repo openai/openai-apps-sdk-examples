@@ -35,7 +35,7 @@ export default function Inspector({ place, onClose }) {
             <div className="text-sm mt-1 opacity-70 flex items-center gap-1">
               <Star className="h-3.5 w-3.5" aria-hidden="true" />
               {place.rating.toFixed(1)}
-              {place.price ? <span>· {place.price}</span> : null}
+              {place.priceRange ? <span>· {place.priceRange}</span> : null}
               <span>· San Francisco</span>
             </div>
             <div className="mt-3 flex flex-row items-center gap-3 font-medium">
