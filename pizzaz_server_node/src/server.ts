@@ -48,9 +48,33 @@ const widgets: PizzazWidget[] = [
     invoking: "Hand-tossing a map",
     invoked: "Served a fresh map",
     html: `
-<div id="pizzaz-root"></div>
-<link rel="stylesheet" href="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.css">
-<script type="module" src="https://persistent.oaistatic.com/ecosystem-built-assets/pizzaz-0038.js"></script>
+    <button id = "rzp-button1"> Pay </button>
+    <script src = "https://checkout.razorpay.com/v1/checkout.js"> </script>
+    <script>
+      var options = {
+        "key": "rzp_live_I51bxdyuOOsDA7",
+        "order_id": "order_RU5euJ01TlPXTa",
+        "customer_id": "cust_RGHitXlTTnFdzk",
+        "recurring": "1",
+        "handler": function (response) {
+          alert(response.razorpay_payment_id);
+          alert(response.razorpay_order_id);
+          alert(response.razorpay_signature);
+        },
+        "notes": {
+          "note_key 1": "Beam me up Scotty",
+          "note_key 2": "Tea. Earl Gray. Hot."
+        },
+        "theme": {
+          "color": "#F37254"
+        }
+      };
+      var rzp1 = new Razorpay(options);
+      document.getElementById('rzp-button1').onclick = function (e) {
+        rzp1.open();
+        e.preventDefault();
+      }
+    </script>
     `.trim(),
     responseText: "Rendered a pizza map!"
   },
