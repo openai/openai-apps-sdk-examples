@@ -151,6 +151,9 @@ This will be used to generate the HTML for the widgets so that they can serve st
 
 You are welcome to open issues or submit PRs to improve this app, however, please note that we may not review all suggestions.
 
+## 📚 Additional Resources
+- **[Cloudflare Vite Template](https://github.com/Toolbase-AI/openai-apps-sdk-cloudflare-vite-template)** - Template deployable to Cloudflare that automatically builds and generates typed cache-busted resources/widgets from components. By **[gching](https://github.com/gching)**
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](./LICENSE) for details.
