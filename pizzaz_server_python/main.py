@@ -54,7 +54,7 @@ widgets: List[PizzazWidget] = [
     PizzazWidget(
         identifier="pizza-map",
         title="Show Pizza Map",
-        template_uri="ui://widget/pizza-map.html",
+        template_uri="ui://widget/pizzaz.html",
         invoking="Hand-tossing a map",
         invoked="Served a fresh map",
         html=_load_widget_html("pizzaz"),
@@ -63,7 +63,7 @@ widgets: List[PizzazWidget] = [
     PizzazWidget(
         identifier="pizza-carousel",
         title="Show Pizza Carousel",
-        template_uri="ui://widget/pizza-carousel.html",
+        template_uri="ui://widget/pizzaz-carousel.html",
         invoking="Carousel some spots",
         invoked="Served a fresh carousel",
         html=_load_widget_html("pizzaz-carousel"),
@@ -72,7 +72,7 @@ widgets: List[PizzazWidget] = [
     PizzazWidget(
         identifier="pizza-albums",
         title="Show Pizza Album",
-        template_uri="ui://widget/pizza-albums.html",
+        template_uri="ui://widget/pizzaz-albums.html",
         invoking="Hand-tossing an album",
         invoked="Served a fresh album",
         html=_load_widget_html("pizzaz-albums"),
@@ -81,7 +81,7 @@ widgets: List[PizzazWidget] = [
     PizzazWidget(
         identifier="pizza-list",
         title="Show Pizza List",
-        template_uri="ui://widget/pizza-list.html",
+        template_uri="ui://widget/pizzaz-list.html",
         invoking="Hand-tossing a list",
         invoked="Served a fresh list",
         html=_load_widget_html("pizzaz-list"),

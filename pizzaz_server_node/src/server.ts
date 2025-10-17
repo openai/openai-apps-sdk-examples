@@ -88,7 +88,7 @@ const widgets: PizzazWidget[] = [
   {
     id: "pizza-map",
     title: "Show Pizza Map",
-    templateUri: "ui://widget/pizza-map.html",
+    templateUri: "ui://widget/pizzaz.html",
     invoking: "Hand-tossing a map",
     invoked: "Served a fresh map",
     html: readWidgetHtml("pizzaz"),
@@ -97,7 +97,7 @@ const widgets: PizzazWidget[] = [
   {
     id: "pizza-carousel",
     title: "Show Pizza Carousel",
-    templateUri: "ui://widget/pizza-carousel.html",
+    templateUri: "ui://widget/pizzaz-carousel.html",
     invoking: "Carousel some spots",
     invoked: "Served a fresh carousel",
     html: readWidgetHtml("pizzaz-carousel"),
@@ -106,7 +106,7 @@ const widgets: PizzazWidget[] = [
   {
     id: "pizza-albums",
     title: "Show Pizza Album",
-    templateUri: "ui://widget/pizza-albums.html",
+    templateUri: "ui://widget/pizzaz-albums.html",
     invoking: "Hand-tossing an album",
     invoked: "Served a fresh album",
     html: readWidgetHtml("pizzaz-albums"),
@@ -115,7 +115,7 @@ const widgets: PizzazWidget[] = [
   {
     id: "pizza-list",
     title: "Show Pizza List",
-    templateUri: "ui://widget/pizza-list.html",
+    templateUri: "ui://widget/pizzaz-list.html",
     invoking: "Hand-tossing a list",
     invoked: "Served a fresh list",
     html: readWidgetHtml("pizzaz-list"),
