@@ -284,8 +284,61 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
         "planet_name": planet,
         "planet_description": description,
         "autoOrbit": payload.auto_orbit,
+        "distance_from_sun_km": {
+            "Mercury": 57900000,
+            "Venus": 108200000,
+            "Earth": 149600000,
+            "Mars": 227900000,
+            "Jupiter": 778500000,
+            "Saturn": 1434000000,
+            "Uranus": 2871000000,
+            "Neptune": 4495000000,
+        }.get(planet, None),
+        "gravity_relative_to_earth": {
+            "Mercury": 0.38,
+            "Venus": 0.91,
+            "Earth": 1.00,
+            "Mars": 0.38,
+            "Jupiter": 2.53,
+            "Saturn": 1.07,
+            "Uranus": 0.89,
+            "Neptune": 1.14,
+        }.get(planet, None),
+        "known_moons": {
+            "Mercury": [],
+            "Venus": [],
+            "Earth": [
+                {"name": "Moon", "note": "Only natural satellite of Earth"}
+            ],
+            "Mars": [
+                {"name": "Phobos", "note": "Likely a captured asteroid"},
+                {"name": "Deimos", "note": "Tiny and irregularly shaped"}
+            ],
+            "Jupiter": [
+                {"name": "Io", "note": "Most volcanically active body in the solar system"},
+                {"name": "Europa", "note": "Subsurface ocean may harbor life"},
+                {"name": "Ganymede", "note": "Largest moon in the solar system"},
+                {"name": "Callisto", "note": "Heavily cratered and ancient surface"}
+            ],
+            "Saturn": [
+                {"name": "Titan", "note": "Thick atmosphere and liquid methane lakes"},
+                {"name": "Enceladus", "note": "Water plumes hint at subsurface ocean"}
+            ],
+            "Uranus": [
+                {"name": "Titania", "note": "Largest moon of Uranus"},
+                {"name": "Oberon", "note": "Second largest Uranian moon"}
+            ],
+            "Neptune": [
+                {"name": "Triton", "note": "Retrograde orbit, likely a captured Kuiper Belt object"}
+            ],
+        }.get(planet, [])
     }
-    message = f"Centered the solar system view on {planet}."
+
+    message = (
+        f"✅ Solar system view centered on **{planet}**.\n\n"
+        f"🪐 **Description:** {description}\n"
+        f"🌍 **Orbit mode:** {'Enabled' if payload.auto_orbit else 'Disabled'}"
+    )
 
     return types.ServerResult(
         types.CallToolResult(
@@ -293,7 +346,11 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                 types.TextContent(
                     type="text",
                     text=message,
-                )
+                ),
+                types.JsonContent(
+                    type="application/json",
+                    json=structured,
+                ),
             ],
             structuredContent=structured,
             _meta=meta,
