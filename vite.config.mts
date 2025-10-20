@@ -212,6 +212,9 @@ export default defineConfig(({}) => ({
     port: 4444,
     strictPort: true,
     cors: true,
+    allowedHosts: [
+      "serrulate-nonelectrically-freya.ngrok-free.dev"
+    ],
   },
   esbuild: {
     jsx: "automatic",
