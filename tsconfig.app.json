@@ -6,8 +6,6 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
@@ -16,12 +14,8 @@
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "types": ["vite/client", "@react-three/fiber"],
-
-    // Helpful for TS resolving and editor tooling
     "baseUrl": ".",
     "paths": {},
-
-    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

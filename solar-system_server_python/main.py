@@ -125,10 +125,10 @@ def _tool_meta(widget: SolarWidget) -> Dict[str, Any]:
         "openai/widgetAccessible": True,
         "openai/resultCanProduceWidget": True,
         "annotations": {
-          "destructiveHint": False,
-          "openWorldHint": False,
-          "readOnlyHint": True,
-        }
+            "destructiveHint": False,
+            "openWorldHint": False,
+            "readOnlyHint": True,
+        },
     }
 
 
@@ -152,10 +152,10 @@ def _normalize_planet(name: str) -> str | None:
     if not key:
         return DEFAULT_PLANET
 
-    clean = ''.join(ch for ch in key if ch.isalnum())
+    clean = "".join(ch for ch in key if ch.isalnum())
 
     for planet in PLANETS:
-        planet_key = ''.join(ch for ch in planet.lower() if ch.isalnum())
+        planet_key = "".join(ch for ch in planet.lower() if ch.isalnum())
         if clean == planet_key or key == planet.lower():
             return planet
 
@@ -164,7 +164,7 @@ def _normalize_planet(name: str) -> str | None:
         return alias
 
     for planet in PLANETS:
-        planet_key = ''.join(ch for ch in planet.lower() if ch.isalnum())
+        planet_key = "".join(ch for ch in planet.lower() if ch.isalnum())
         if planet_key.startswith(clean):
             return planet
 
@@ -259,10 +259,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                 content=[
                     types.TextContent(
                         type="text",
-                        text=(
-                            "Unknown planet. Provide one of: "
-                            + ", ".join(PLANETS)
-                        ),
+                        text=("Unknown planet. Provide one of: " + ", ".join(PLANETS)),
                     )
                 ],
                 isError=True,

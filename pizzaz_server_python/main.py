@@ -86,15 +86,19 @@ widgets: List[PizzazWidget] = [
         invoked="Served a fresh list",
         html=_load_widget_html("pizzaz-list"),
         response_text="Rendered a pizza list!",
-    )
+    ),
 ]
 
 
 MIME_TYPE = "text/html+skybridge"
 
 
-WIDGETS_BY_ID: Dict[str, PizzazWidget] = {widget.identifier: widget for widget in widgets}
-WIDGETS_BY_URI: Dict[str, PizzazWidget] = {widget.template_uri: widget for widget in widgets}
+WIDGETS_BY_ID: Dict[str, PizzazWidget] = {
+    widget.identifier: widget for widget in widgets
+}
+WIDGETS_BY_URI: Dict[str, PizzazWidget] = {
+    widget.template_uri: widget for widget in widgets
+}
 
 
 class PizzaInput(BaseModel):
@@ -138,7 +142,7 @@ def _tool_meta(widget: PizzazWidget) -> Dict[str, Any]:
         "openai/toolInvocation/invoking": widget.invoking,
         "openai/toolInvocation/invoked": widget.invoked,
         "openai/widgetAccessible": True,
-        "openai/resultCanProduceWidget": True
+        "openai/resultCanProduceWidget": True,
     }
 
 
@@ -277,7 +281,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                 )
             ],
             structuredContent={"pizzaTopping": topping},
-            _meta=meta
+            _meta=meta,
         )
     )
 

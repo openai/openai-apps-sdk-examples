@@ -33,6 +33,7 @@ The MCP servers in this demo highlight how each tool can light up widgets by com
 - Node.js 18+
 - pnpm (recommended) or npm/yarn
 - Python 3.10+ (for the Python MCP server)
+- pre-commit for formmating
 
 ## Install dependencies
 
@@ -40,6 +41,7 @@ Clone the repository and install the workspace dependencies:
 
 ```bash
 pnpm install
+pre-commit install
 ```
 
 > Using npm or yarn? Install the root dependencies with your preferred client and adjust the commands below accordingly.
