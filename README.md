@@ -33,7 +33,7 @@ The MCP servers in this demo highlight how each tool can light up widgets by com
 - Node.js 18+
 - pnpm (recommended) or npm/yarn
 - Python 3.10+ (for the Python MCP server)
-- pre-commit for formmating
+- pre-commit for formatting
 
 ## Install dependencies
 
