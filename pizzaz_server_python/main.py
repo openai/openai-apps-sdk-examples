@@ -34,7 +34,7 @@ class PizzazWidget:
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 
-@lru_cache(maxsize=None)
+# @lru_cache(maxsize=None)
 def _load_widget_html(component_name: str) -> str:
     html_path = ASSETS_DIR / f"{component_name}.html"
     if html_path.exists():
@@ -306,7 +306,43 @@ except Exception:
     pass
 
 
+# Serve static assets
+from starlette.responses import FileResponse
+from starlette.routing import Route
+
+
+async def serve_asset(request):
+    filename = request.path_params["filename"]
+
+    # Determine MIME type based on extension
+    mime_types = {
+        ".js": "application/javascript",
+        ".css": "text/css",
+        ".html": "text/html",
+        ".map": "application/json",
+    }
+    ext = "." + filename.rsplit(".", 1)[1] if "." in filename else ""
+    media_type = mime_types.get(ext)
+
+    # Try exact match first
+    file_path = ASSETS_DIR / filename
+    if file_path.exists():
+        return FileResponse(file_path, media_type=media_type)
+
+    # Try with hash suffix pattern (e.g., pizzaz-list.js -> pizzaz-list-2d2b.js)
+    base_name = filename.rsplit(".", 1)[0] if "." in filename else filename
+
+    candidates = sorted(ASSETS_DIR.glob(f"{base_name}-*.{ext.lstrip('.')}"))
+    if candidates:
+        return FileResponse(candidates[-1], media_type=media_type)
+
+    return FileResponse(str(file_path), status_code=404)
+
+
+app.routes.append(Route("/{filename:path}", serve_asset))
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

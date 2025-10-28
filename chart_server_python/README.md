@@ -7,7 +7,7 @@ An MCP server for ChatGPT App that searches for data visualization charts based 
 - Search charts by keywords (e.g., "population density", "CO2 emissions")
 - Returns charts as embedded iframes
 - Mock data with various chart categories (demographics, environment, economy, health)
-- Built with FastMCP for easy integration with ChatGPT Apps
+- Built with FastMCP 2.x decorator-based API for easy integration with ChatGPT Apps
 
 ## Installation
 
@@ -57,4 +57,22 @@ Configure your ChatGPT App to connect to this MCP server:
 }
 ```
 
-Then use the `search-charts` tool with natural language queries.
+Then use the `search_charts_tool` with natural language queries.
+
+## Testing
+
+Test the server with curl:
+
+```bash
+# List available tools
+curl -X POST http://localhost:8001/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}'
+
+# Search for charts
+curl -X POST http://localhost:8001/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "search_charts_tool", "arguments": {"query": "CO2 emissions"}}}'
+```

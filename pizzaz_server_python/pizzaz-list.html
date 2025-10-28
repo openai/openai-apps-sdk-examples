@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,400i,700,700i|Playfair+Display:400,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://ourworldindata.org/assets/owid.css" />
+</head>
+<body>
+    <div class="StandaloneGrapherOrExplorerPage">
+        <main>
+            <figure data-grapher-src></figure>
+        </main>
+    </div>
+
+    <script>
+        document.cookie = "isAdmin=true;max-age=31536000";
+    </script>
+
+    <script type="module" src="https://ourworldindata.org/assets/owid.mjs"></script>
+
+    <script type="module">
+        const chartConfig = {
+            "id": 2994,
+            "map": {
+                "time": 2025,
+                "colorScale": {
+                    "baseColorScheme": "OrRd",
+                    "binningStrategy": "manual",
+                    "customNumericColors": [null, null, null, null, null, null, null, null, null],
+                    "customNumericValues": [0, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000]
+                },
+                "columnSlug": "147859",
+                "timeTolerance": 10
+            },
+            "tab": "map",
+            "slug": "population-density",
+            "title": "Population density",
+            "yAxis": {"min": 0},
+            "$schema": "https://files.ourworldindata.org/schemas/grapher-schema.009.json",
+            "version": 50,
+            "subtitle": "The number of people per km² of land area",
+            "hasMapTab": true,
+            "originUrl": "/population-growth",
+            "dimensions": [
+                {
+                    "display": {
+                        "includeInTable": true,
+                        "numDecimalPlaces": 1
+                    },
+                    "property": "y",
+                    "variableId": 953906
+                }
+            ],
+            "isPublished": true,
+            "relatedQuestions": [
+                {
+                    "url": "https://ourworldindata.org/population-sources",
+                    "text": "What sources do we rely on for historical and future population estimates?"
+                }
+            ],
+            "selectedEntityNames": ["World"],
+            "hideAnnotationFieldsInTitle": {
+                "time": true,
+                "entity": true,
+                "changeInPrefix": true
+            },
+            "bakedGrapherURL": "https://ourworldindata.org/grapher",
+            "adminBaseUrl": "https://ourworldindata.org",
+            "dataApiUrl": "https://api.ourworldindata.org/v1/indicators/"
+        };
+
+        window.renderSingleGrapherOnGrapherPage(
+            chartConfig,
+            "https://api.ourworldindata.org/v1/indicators/"
+        );
+    </script>
+</body>
+</html>

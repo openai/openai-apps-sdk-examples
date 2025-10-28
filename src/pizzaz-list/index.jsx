@@ -1,108 +1,96 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import markers from "../pizzaz/markers.json";
-import { PlusCircle, Star } from "lucide-react";
 
 function App() {
-  const places = markers?.places || [];
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const chartConfig = {
+      "id": 2994,
+      "map": {
+        "time": 2025,
+        "colorScale": {
+          "baseColorScheme": "OrRd",
+          "binningStrategy": "manual",
+          "customNumericColors": [null, null, null, null, null, null, null, null, null],
+          "customNumericValues": [0, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000]
+        },
+        "columnSlug": "147859",
+        "timeTolerance": 10
+      },
+      "tab": "map",
+      "slug": "population-density",
+      "title": "Population density",
+      "yAxis": {"min": 0},
+      "$schema": "https://files.ourworldindata.org/schemas/grapher-schema.009.json",
+      "version": 50,
+      "subtitle": "The number of people per km² of land area",
+      "hasMapTab": true,
+      "originUrl": "/population-growth",
+      "dimensions": [
+        {
+          "display": {
+            "includeInTable": true,
+            "numDecimalPlaces": 1
+          },
+          "property": "y",
+          "variableId": 953906
+        }
+      ],
+      "isPublished": true,
+      "relatedQuestions": [
+        {
+          "url": "https://ourworldindata.org/population-sources",
+          "text": "What sources do we rely on for historical and future population estimates?"
+        }
+      ],
+      "selectedEntityNames": ["World"],
+      "hideAnnotationFieldsInTitle": {
+        "time": true,
+        "entity": true,
+        "changeInPrefix": true
+      },
+      "bakedGrapherURL": "https://ourworldindata.org/grapher",
+      "adminBaseUrl": "https://ourworldindata.org",
+      "dataApiUrl": "https://api.ourworldindata.org/v1/indicators/"
+    };
+
+    // Load the owid script if not already loaded
+    if (!document.querySelector('script[src="https://ourworldindata.org/assets/owid.mjs"]')) {
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = 'https://ourworldindata.org/assets/owid.mjs';
+      script.onload = () => {
+        if (window.renderSingleGrapherOnGrapherPage) {
+          window.renderSingleGrapherOnGrapherPage(
+            chartConfig,
+            "https://api.ourworldindata.org/v1/indicators/"
+          );
+        }
+      };
+      document.body.appendChild(script);
+    } else if (window.renderSingleGrapherOnGrapherPage) {
+      window.renderSingleGrapherOnGrapherPage(
+        chartConfig,
+        "https://api.ourworldindata.org/v1/indicators/"
+      );
+    }
+
+    // Set admin cookie
+    document.cookie = "isAdmin=true;max-age=31536000";
+  }, []);
 
   return (
-    <div className="antialiased w-full text-black px-4 pb-2 border border-black/10 rounded-2xl sm:rounded-3xl overflow-hidden bg-white">
-      <div className="max-w-full">
-        <div className="flex flex-row items-center gap-4 sm:gap-4 border-b border-black/5 py-4">
-          <div
-            className="sm:w-18 w-16 aspect-square rounded-xl bg-cover bg-center"
-            style={{
-              backgroundImage:
-                "url(https://persistent.oaistatic.com/pizzaz/title.png)",
-            }}
-          ></div>
-          <div>
-            <div className="text-base sm:text-xl font-medium">
-              National Best Pizza List
-            </div>
-            <div className="text-sm text-black/60">
-              A ranking of the best pizzerias in the world
-            </div>
-          </div>
-          <div className="flex-auto hidden sm:flex justify-end pr-2">
-            <button
-              type="button"
-              className="cursor-pointer inline-flex items-center rounded-full bg-[#F46C21] text-white px-4 py-1.5 sm:text-md text-sm font-medium hover:opacity-90 active:opacity-100"
-            >
-              Save List
-            </button>
-          </div>
-        </div>
-        <div className="min-w-full text-sm flex flex-col">
-          {places.slice(0, 7).map((place, i) => (
-            <div
-              key={place.id}
-              className="px-3 -mx-2 rounded-2xl hover:bg-black/5"
-            >
-              <div
-                style={{
-                  borderBottom:
-                    i === 7 - 1 ? "none" : "1px solid rgba(0, 0, 0, 0.05)",
-                }}
-                className="flex w-full items-center hover:border-black/0! gap-2"
-              >
-                <div className="py-3 pr-3 min-w-0 w-full sm:w-3/5">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={place.thumbnail}
-                      alt={place.name}
-                      className="h-10 w-10 sm:h-11 sm:w-11 rounded-lg object-cover ring ring-black/5"
-                    />
-                    <div className="w-3 text-end sm:block hidden text-sm text-black/40">
-                      {i + 1}
-                    </div>
-                    <div className="min-w-0 sm:pl-1 flex flex-col items-start h-full">
-                      <div className="font-medium text-sm sm:text-md truncate max-w-[40ch]">
-                        {place.name}
-                      </div>
-                      <div className="mt-1 sm:mt-0.25 flex items-center gap-3 text-black/70 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Star
-                            strokeWidth={1.5}
-                            className="h-3 w-3 text-black"
-                          />
-                          <span>
-                            {place.rating?.toFixed
-                              ? place.rating.toFixed(1)
-                              : place.rating}
-                          </span>
-                        </div>
-                        <div className="whitespace-nowrap sm:hidden">
-                          {place.city || "–"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="hidden sm:block text-end py-2 px-3 text-sm text-black/60 whitespace-nowrap flex-auto">
-                  {place.city || "–"}
-                </div>
-                <div className="py-2 whitespace-nowrap flex justify-end">
-                  <PlusCircle strokeWidth={1.5} className="h-5 w-5" />
-                </div>
-              </div>
-            </div>
-          ))}
-          {places.length === 0 && (
-            <div className="py-6 text-center text-black/60">
-              No pizzerias found.
-            </div>
-          )}
-        </div>
-        <div className="sm:hidden px-0 pt-2 pb-2">
-          <button
-            type="button"
-            className="w-full cursor-pointer inline-flex items-center justify-center rounded-full bg-[#F46C21] text-white px-4 py-2 font-medium hover:opacity-90 active:opacity-100"
-          >
-            Save List
-          </button>
-        </div>
+    <div>
+      <link
+        href="https://fonts.googleapis.com/css?family=Lato:300,400,400i,700,700i|Playfair+Display:400,700&display=swap"
+        rel="stylesheet"
+      />
+      <link rel="stylesheet" href="https://ourworldindata.org/assets/owid.css" />
+      <div className="StandaloneGrapherOrExplorerPage" ref={containerRef}>
+        <main>
+          <figure data-grapher-src></figure>
+        </main>
       </div>
     </div>
   );
