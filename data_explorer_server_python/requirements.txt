@@ -1,0 +1,6 @@
+fastapi>=0.115.0
+mcp[fastapi]>=0.1.0
+numpy>=1.26.0
+pandas>=2.2.0
+python-dateutil>=2.9.0
+uvicorn>=0.30.0

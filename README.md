@@ -36,6 +36,7 @@ The MCP servers in this demo highlight how each tool can light up widgets by com
 - `pizzaz_server_node/` – MCP server implemented with the official TypeScript SDK.
 - `pizzaz_server_python/` – Python MCP server that returns the Pizzaz widgets.
 - `solar-system_server_python/` – Python MCP server for the 3D solar system widget.
+- `data_explorer_server_python/` – Python MCP server that powers the Data Explorer widget (CSV uploads, filters, charts).
 - `build-all.mts` – Vite build orchestrator that produces hashed bundles for every widget entrypoint.
 
 ## Prerequisites
@@ -74,7 +75,7 @@ pnpm run dev
 
 ## Serve the static assets
 
-All of the MCP servers expect the bundled HTML, JS, and CSS to be served from the local static file server. After every build, start the server before launching any MCP processes:
+All of the MCP servers (except the Data Explorer server) expect the bundled HTML, JS, and CSS to be served from the local static file server. After every build, start the server before launching any MCP processes:
 
 ```bash
 pnpm run serve
@@ -84,12 +85,15 @@ The assets are exposed at [`http://localhost:4444`](http://localhost:4444) with 
 
 > **Note:** The Python Pizzaz server caches widget HTML with `functools.lru_cache`. If you rebuild or manually edit files in `assets/`, restart the MCP server so it picks up the updated markup.
 
+> **Note:** The Data Explorer server reads the built widget assets directly from the `assets/` directory, so you still need to run `pnpm run build` whenever you change the frontend, but you don't have to start `pnpm run serve` while that server is running.
+
 ## Run the MCP servers
 
 The repository ships several demo MCP servers that highlight different widget bundles:
 
 - **Pizzaz (Node & Python)** – pizza-inspired collection of tools and components
 - **Solar system (Python)** – 3D solar system viewer
+- **Data Explorer (Python)** – interactive CSV upload, profiling, preview, and charting
 
 ### Pizzaz Node server
 
@@ -118,6 +122,35 @@ uvicorn solar-system_server_python.main:app --port 8000
 
 You can reuse the same virtual environment for all Python servers—install the dependencies once and run whichever entry point you need.
 
+### Data Explorer Python server
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r data_explorer_server_python/requirements.txt
+pnpm run build
+uvicorn data_explorer_server_python.main:app --port 8001 --reload
+```
+
+This server accepts CSV uploads, profiles dataset metadata, exposes filtered preview tables, and generates chart-ready aggregates. Built assets are served directly by the MCP server, so rerun `pnpm run build` whenever you update the widget bundle.
+
+#### Data Explorer security configuration
+
+- `DATA_EXPLORER_ALLOWED_UPLOAD_ROOTS` (required for `filePath`/`fileUri` uploads) – os-path-separated list of directories (e.g., `/tmp:/Users/me/datasets`). Path-based uploads are disabled unless this allowlist is set.
+- `DATA_EXPLORER_AUTH_TOKEN` – when set, every HTTP request (including MCP transport) must send `Authorization: Bearer <token>`.
+- `DATA_EXPLORER_CORS_ALLOW_ORIGINS` – comma-delimited list of origins (e.g., `https://platform.openai.com,https://studio.openai.com`) that should receive CORS headers. CORS is disabled when this variable is unset.
+
+If you expose the server over the public internet, configure all three variables to avoid leaking local files or running an unauthenticated, cross-origin-accessible endpoint.
+
+For local development you can continue testing path uploads by pointing the allowlist at directories you control, for example:
+
+```bash
+export DATA_EXPLORER_ALLOWED_UPLOAD_ROOTS="$(pwd)/sample-data:/tmp"
+uvicorn data_explorer_server_python.main:app --port 8001 --reload
+```
+
+Inline (`csvText`) and chunked uploads do not require any of the security environment variables, so you can omit them when doing quick experiments.
+
 ## Testing in ChatGPT
 
 To add these apps to ChatGPT, enable [developer mode](https://platform.openai.com/docs/guides/developer-mode), and add your apps in Settings > Connectors.
@@ -144,7 +177,7 @@ You can then invoke tools by asking something related. For example, for the Pizz
 
 ## Next steps
 
-- Customize the widget data: edit the handlers in `pizzaz_server_node/src`, `pizzaz_server_python/main.py`, or the solar system server to fetch data from your systems.
+- Customize the widget data: edit the handlers in `pizzaz_server_node/src`, `pizzaz_server_python/main.py`, `solar-system_server_python`, or `data_explorer_server_python` to fetch data from your systems.
 - Create your own components and add them to the gallery: drop new entries into `src/` and they will be picked up automatically by the build script.
 
 ### Deploy your MCP server

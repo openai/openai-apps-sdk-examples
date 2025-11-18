@@ -49,6 +49,7 @@
     "embla-carousel": "^8.0.0",
     "embla-carousel-react": "^8.0.0",
     "partial-json": "^0.1.7",
+    "recharts": "^2.13.3",
     "react": "^19.1.1",
     "react-datepicker": "^8.4.0",
     "react-datepicker.css": "link:react-datepicker/dist/react-datepicker.css",
