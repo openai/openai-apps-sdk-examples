@@ -1,5 +1,3 @@
-import React from "react";
-
 function AlbumCard({ album, onSelect }) {
   return (
     <button

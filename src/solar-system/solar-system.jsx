@@ -1,9 +1,7 @@
-import { createRoot } from "react-dom/client";
 import { useRef, useImperativeHandle, useState, useEffect } from "react";
 import { Canvas, useFrame, useThree, useLoader } from "@react-three/fiber";
-import { Html, OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { useSpring } from "@react-spring/three";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   EffectComposer,
