@@ -1,0 +1,54 @@
+{
+  "catalog": [
+    {
+      "id": "JK001",
+      "name": "Classic Leather Jacket",
+      "price": 159.99,
+      "colors": ["Black", "Brown"],
+      "sizes": ["S", "M", "L", "XL"],
+      "image": "https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&w=1335&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "description": "A premium leather jacket with a timeless design.",
+      "inStock": true
+    },
+    {
+      "id": "JK002",
+      "name": "Winter Parka",
+      "price": 199.99,
+      "colors": ["Navy", "Grey", "Olive"],
+      "sizes": ["M", "L", "XL"],
+      "image": "https://images.unsplash.com/photo-1557418669-db3f781a58c0?q=80&w=1297&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "description": "Insulated parka designed to withstand extreme cold.",
+      "inStock": true
+    },
+    {
+      "id": "JK003",
+      "name": "Lightweight Windbreaker",
+      "price": 69.99,
+      "colors": ["Red", "Blue", "Green"],
+      "sizes": ["XS", "S", "M", "L"],
+      "image": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=1336&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "description": "Breathable and water-resistant jacket for daily wear.",
+      "inStock": true
+    },
+    {
+      "id": "JK004",
+      "name": "Denim Jacket",
+      "price": 89.99,
+      "colors": ["Blue", "Black"],
+      "sizes": ["S", "M", "L"],
+      "image": "https://images.unsplash.com/photo-1611312449408-fcece27cdbb7?q=80&w=1269&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "description": "A rugged denim jacket with modern styling.",
+      "inStock": true
+    },
+    {
+      "id": "JK005",
+      "name": "Softshell Performance Jacket",
+      "price": 129.99,
+      "colors": ["Black", "Charcoal"],
+      "sizes": ["M", "L", "XL", "XXL"],
+      "image": "https://images.unsplash.com/photo-1548883354-94bcfe321cbb?q=80&w=1287&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+      "description": "Windproof and water-resistant jacket for outdoor activities.",
+      "inStock": true
+    }
+  ]
+}
