@@ -132,18 +132,6 @@ def _tool_meta(widget: SolarWidget) -> Dict[str, Any]:
     }
 
 
-def _embedded_widget_resource(widget: SolarWidget) -> types.EmbeddedResource:
-    return types.EmbeddedResource(
-        type="resource",
-        resource=types.TextResourceContents(
-            uri=widget.template_uri,
-            mimeType=MIME_TYPE,
-            text=widget.html,
-            title=widget.title,
-        ),
-    )
-
-
 def _normalize_planet(name: str) -> str | None:
     if not name:
         return DEFAULT_PLANET
@@ -266,15 +254,7 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    widget_resource = _embedded_widget_resource(WIDGET)
-    meta: Dict[str, Any] = {
-        "openai.com/widget": widget_resource.model_dump(mode="json"),
-        "openai/outputTemplate": WIDGET.template_uri,
-        "openai/toolInvocation/invoking": WIDGET.invoking,
-        "openai/toolInvocation/invoked": WIDGET.invoked,
-        "openai/widgetAccessible": True,
-        "openai/resultCanProduceWidget": True,
-    }
+    meta: Dict[str, Any] = _tool_meta(WIDGET)
 
     description = PLANET_DESCRIPTIONS.get(planet, "")
     structured = {
