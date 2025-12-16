@@ -58,12 +58,12 @@ const FILTERS: Array<{
   label: string;
   tag?: string;
 }> = [
-  { id: "all", label: "All" },
-  { id: "vegetarian", label: "Vegetarian", tag: "vegetarian" },
-  { id: "vegan", label: "Vegan", tag: "vegan" },
-  { id: "size", label: "Size", tag: "size" },
-  { id: "spicy", label: "Spicy", tag: "spicy" },
-];
+    { id: "all", label: "All" },
+    { id: "vegetarian", label: "Vegetarian", tag: "vegetarian" },
+    { id: "vegan", label: "Vegan", tag: "vegan" },
+    { id: "size", label: "Size", tag: "size" },
+    { id: "spicy", label: "Spicy", tag: "spicy" },
+  ];
 
 const INITIAL_CART_ITEMS: CartItem[] = [
   {
@@ -604,12 +604,12 @@ function App() {
   const modalParams =
     viewParams && typeof viewParams === "object"
       ? (viewParams as {
-          state?: unknown;
-          cartItems?: unknown;
-          subtotal?: unknown;
-          total?: unknown;
-          totalItems?: unknown;
-        })
+        state?: unknown;
+        cartItems?: unknown;
+        subtotal?: unknown;
+        total?: unknown;
+        totalItems?: unknown;
+      })
       : null;
 
   const modalState =
@@ -619,7 +619,9 @@ function App() {
 
   const isCartModalView = isModalView && modalState === "cart";
   const shouldShowCheckoutOnly =
-    isCheckoutRoute || (isModalView && !isCartModalView);
+    isCheckoutRoute ||
+    (isModalView && !isCartModalView) ||
+    (selectedCartItemId != null && typeof window.openai === "undefined");
   const wasModalViewRef = useRef(isModalView);
 
   useEffect(() => {
@@ -730,11 +732,11 @@ function App() {
         anchorRect == null
           ? undefined
           : {
-              top: anchorRect.top,
-              left: anchorRect.left,
-              width: anchorRect.width,
-              height: anchorRect.height,
-            };
+            top: anchorRect.top,
+            left: anchorRect.left,
+            width: anchorRect.width,
+            height: anchorRect.height,
+          };
 
       void (async () => {
         try {
@@ -886,8 +888,8 @@ function App() {
     const observer =
       typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(() => {
-            requestAnimationFrame(updateItemColumnPlacement);
-          })
+          requestAnimationFrame(updateItemColumnPlacement);
+        })
         : null;
 
     observer?.observe(node);
