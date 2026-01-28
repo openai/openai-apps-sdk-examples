@@ -6,7 +6,7 @@ import fs from "node:fs";
 import tailwindcss from "@tailwindcss/vite";
 
 function buildInputs() {
-  const files = fg.sync("src/**/index.{tsx,jsx}", { dot: false });
+  const files = fg.sync("examples/**/ui/**/index.{tsx,jsx}", { dot: false });
   return Object.fromEntries(
     files.map((f) => [path.basename(path.dirname(f)), path.resolve(f)])
   );
@@ -29,7 +29,7 @@ function multiEntryDevEndpoints(options: {
 }): Plugin {
   const {
     entries,
-    globalCss = ["src/index.css"],
+    globalCss = ["examples/_shared/ui/index.css"],
     perEntryCssGlob = "**/*.{css,pcss,scss,sass}",
     perEntryCssIgnore = ["**/*.module.*"],
   } = options;
@@ -58,7 +58,8 @@ function multiEntryDevEndpoints(options: {
   <ul>
     ${names
       .filter((n) => !HIDE_FROM_HOME.has(n))
-      .toSorted()
+      .slice()
+      .sort()
       .map(
         (name) =>
           `<li><a href="/${name}.html">${name}</a><code>/${name}.html</code></li>`
@@ -163,7 +164,7 @@ function multiEntryDevEndpoints(options: {
       if (kind === "style") {
         const allCss = [...globals, ...perEntry]; // absolute paths on disk
         const lines = [
-          `@source "./src";`,
+          `@source "./examples";`,
           ...allCss.map((p) => `@import "${toServerRoot(p)}";`),
         ];
         return lines.join("\n");

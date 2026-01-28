@@ -1,3 +1,4 @@
 packages:
-  - pizzaz_server_node
-  - kitchen_sink_server_node
+  - examples/hello-world-mcp-node
+  - examples/pizzaz/server_node
+  - examples/kitchen-sink-lite/server_node

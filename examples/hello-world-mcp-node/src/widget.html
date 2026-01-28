@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+          Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        color: rgba(17, 24, 39, 0.95);
+      }
+
+      body {
+        margin: 0;
+        padding: 16px;
+        background: transparent;
+      }
+
+      .card {
+        border: 1px solid rgba(17, 24, 39, 0.12);
+        border-radius: 14px;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(6px);
+      }
+
+      .title {
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin: 0 0 4px;
+      }
+
+      .subtitle {
+        font-size: 13px;
+        color: rgba(55, 65, 81, 0.95);
+        margin: 0 0 12px;
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin: 10px 0 0;
+        flex-wrap: wrap;
+      }
+
+      input {
+        flex: 1 1 180px;
+        border: 1px solid rgba(17, 24, 39, 0.16);
+        border-radius: 10px;
+        padding: 9px 10px;
+        font-size: 14px;
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      button {
+        border: 1px solid rgba(17, 24, 39, 0.16);
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 14px;
+        background: rgba(17, 24, 39, 0.92);
+        color: white;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      .pill {
+        font-size: 12px;
+        padding: 6px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(17, 24, 39, 0.12);
+        background: rgba(255, 255, 255, 0.7);
+        color: rgba(55, 65, 81, 0.95);
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      details {
+        margin: 12px 0 0;
+      }
+
+      summary {
+        cursor: pointer;
+        color: rgba(55, 65, 81, 0.95);
+        font-size: 13px;
+      }
+
+      pre {
+        margin: 10px 0 0;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(17, 24, 39, 0.08);
+        background: rgba(17, 24, 39, 0.04);
+        font-size: 12px;
+        overflow: auto;
+        max-height: 240px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <p class="title" id="title">Hello!</p>
+      <p class="subtitle" id="subtitle">
+        A minimal widget rendered from an MCP tool.
+      </p>
+
+      <div class="row">
+        <input id="name" placeholder="Type a name (e.g., PopChips)" />
+        <button id="updateGreeting" type="button">Update greeting</button>
+      </div>
+
+      <div class="row">
+        <span class="pill" id="status">Ready</span>
+      </div>
+
+      <details>
+        <summary>Debug</summary>
+        <pre id="debug"></pre>
+      </details>
+    </div>
+
+    <script type="module">
+      const byId = (id) => document.getElementById(id);
+
+      const title = byId("title");
+      const subtitle = byId("subtitle");
+      const nameInput = byId("name");
+      const status = byId("status");
+      const updateGreetingButton = byId("updateGreeting");
+      const debug = byId("debug");
+
+      const SET_GLOBALS_EVENT_TYPE = "openai:set_globals";
+
+      let lastCallTool = null;
+
+      const safeStringify = (value) => {
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch {
+          return String(value);
+        }
+      };
+
+      const normalizeName = (value) => {
+        if (typeof value !== "string") return null;
+        const trimmed = value.trim();
+        return trimmed.length ? trimmed : null;
+      };
+
+      const getInitialName = () => {
+        const toolOutput = window.openai?.toolOutput ?? null;
+        const toolInput = window.openai?.toolInput ?? null;
+        return (
+          normalizeName(toolOutput?.name) ??
+          normalizeName(toolInput?.name) ??
+          normalizeName(nameInput.value) ??
+          "world"
+        );
+      };
+
+      const renderDebug = () => {
+        const toolOutput = window.openai?.toolOutput ?? null;
+        const toolInput = window.openai?.toolInput ?? null;
+
+        debug.textContent = safeStringify({
+          displayMode: window.openai?.displayMode,
+          theme: window.openai?.theme,
+          toolInput,
+          toolOutput,
+          lastCallTool,
+        });
+      };
+
+      const hydrate = () => {
+        const toolOutput = window.openai?.toolOutput ?? null;
+        const name = getInitialName();
+        const greeting = toolOutput?.greeting ?? `Hello, ${name}!`;
+
+        title.textContent = greeting;
+        subtitle.textContent =
+          toolOutput?.subtitle ?? "This widget is served as inline HTML.";
+        if (!normalizeName(nameInput.value) || nameInput.value === "world") {
+          nameInput.value = name;
+        }
+
+        renderDebug();
+      };
+
+      hydrate();
+
+      window.addEventListener(
+        SET_GLOBALS_EVENT_TYPE,
+        () => {
+          hydrate();
+        },
+        { passive: true }
+      );
+
+      nameInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") {
+          return;
+        }
+        event.preventDefault();
+        updateGreetingButton.click();
+      });
+
+      updateGreetingButton.addEventListener("click", async () => {
+        const name = normalizeName(nameInput.value) ?? "world";
+
+        if (!window.openai?.callTool) {
+          status.textContent = "callTool unavailable";
+          return;
+        }
+
+        updateGreetingButton.disabled = true;
+        status.textContent = "Updating…";
+        try {
+          const response = await window.openai.callTool("hello-world-greet", {
+            name,
+          });
+          lastCallTool = response;
+          status.textContent =
+            typeof response === "string" ? "Updated" : "Updated (via callTool)";
+          title.textContent = `Hello, ${name}!`;
+          subtitle.textContent = "Updated via window.openai.callTool().";
+          renderDebug();
+        } catch (error) {
+          status.textContent =
+            error instanceof Error ? error.message : "Update failed";
+        } finally {
+          updateGreetingButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

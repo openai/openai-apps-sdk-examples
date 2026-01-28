@@ -4,6 +4,7 @@ node_modules/
 
 # Build outputs
 /assets
+examples/**/assets/
 dist/
 build/
 .vite/
