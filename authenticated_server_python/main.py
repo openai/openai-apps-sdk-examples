@@ -7,7 +7,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 from urllib.parse import urlparse
 
 import mcp.types as types
@@ -17,6 +17,80 @@ from mcp.shared.auth import ProtectedResourceMetadata
 from dotenv import load_dotenv
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+
+class MCPHeaderNormalizationMiddleware:
+    """
+    ASGI middleware to normalize HTTP headers for MCP SDK compatibility.
+
+    The MCP SDK strictly validates Content-Type and Accept headers:
+    - Content-Type must be 'application/json' (rejects 'text/octet-stream')
+    - Accept header wildcards like '*/*' are rejected (expects 'application/json')
+
+    This middleware rewrites these headers to ensure compatibility with clients
+    that send non-standard headers (e.g., OpenAI platform during tool scanning).
+
+    See: https://github.com/openai/openai-apps-sdk-examples/issues/183
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Normalize headers in the ASGI scope
+        headers = list(scope.get("headers", []))
+        normalized_headers: List[tuple[bytes, bytes]] = []
+        content_type_found = False
+        accept_found = False
+
+        for key, value in headers:
+            key_lower = key.lower()
+
+            if key_lower == b"content-type":
+                content_type_found = True
+                decoded_value = value.decode("latin-1").lower().strip()
+                # Rewrite text/octet-stream or application/octet-stream to application/json
+                # These content types are sometimes sent by clients but contain JSON data
+                if "octet-stream" in decoded_value:
+                    normalized_headers.append((key, b"application/json"))
+                else:
+                    normalized_headers.append((key, value))
+
+            elif key_lower == b"accept":
+                accept_found = True
+                decoded_value = value.decode("latin-1").lower().strip()
+                # If Accept is a wildcard, add explicit application/json
+                # The MCP SDK requires explicit application/json in Accept header
+                if decoded_value in ("*/*", "application/*", "*"):
+                    normalized_headers.append(
+                        (key, b"application/json, text/event-stream, */*")
+                    )
+                elif "application/json" not in decoded_value:
+                    # Prepend application/json if not present
+                    new_accept = f"application/json, {decoded_value}"
+                    normalized_headers.append((key, new_accept.encode("latin-1")))
+                else:
+                    normalized_headers.append((key, value))
+            else:
+                normalized_headers.append((key, value))
+
+        # Add Content-Type if missing (for POST requests with body)
+        if not content_type_found and scope.get("method", "").upper() == "POST":
+            normalized_headers.append((b"content-type", b"application/json"))
+
+        # Add Accept header if missing
+        if not accept_found:
+            normalized_headers.append(
+                (b"accept", b"application/json, text/event-stream")
+            )
+
+        scope["headers"] = normalized_headers
+        await self.app(scope, receive, send)
 
 
 @dataclass(frozen=True)
@@ -544,6 +618,13 @@ try:
     )
 except Exception:
     pass
+
+# Wrap with header normalization middleware to handle non-standard Content-Type
+# and Accept headers sent by some MCP clients (e.g., OpenAI platform during
+# tool scanning). This middleware runs first (outermost) to normalize headers
+# before they reach the MCP SDK's strict validation.
+# See: https://github.com/openai/openai-apps-sdk-examples/issues/183
+app = MCPHeaderNormalizationMiddleware(app)
 
 
 if __name__ == "__main__":

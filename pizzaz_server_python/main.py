@@ -20,6 +20,72 @@ import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+
+class MCPHeaderNormalizationMiddleware:
+    """
+    ASGI middleware to normalize HTTP headers for MCP SDK compatibility.
+
+    The MCP SDK strictly validates Content-Type and Accept headers:
+    - Content-Type must be 'application/json' (rejects 'text/octet-stream')
+    - Accept header wildcards like '*/*' are rejected (expects 'application/json')
+
+    This middleware rewrites these headers to ensure compatibility with clients
+    that send non-standard headers (e.g., OpenAI platform during tool scanning).
+
+    See: https://github.com/openai/openai-apps-sdk-examples/issues/183
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        headers = list(scope.get("headers", []))
+        normalized_headers: List[tuple[bytes, bytes]] = []
+        content_type_found = False
+        accept_found = False
+
+        for key, value in headers:
+            key_lower = key.lower()
+
+            if key_lower == b"content-type":
+                content_type_found = True
+                decoded_value = value.decode("latin-1").lower().strip()
+                if "octet-stream" in decoded_value:
+                    normalized_headers.append((key, b"application/json"))
+                else:
+                    normalized_headers.append((key, value))
+
+            elif key_lower == b"accept":
+                accept_found = True
+                decoded_value = value.decode("latin-1").lower().strip()
+                if decoded_value in ("*/*", "application/*", "*"):
+                    normalized_headers.append(
+                        (key, b"application/json, text/event-stream, */*")
+                    )
+                elif "application/json" not in decoded_value:
+                    new_accept = f"application/json, {decoded_value}"
+                    normalized_headers.append((key, new_accept.encode("latin-1")))
+                else:
+                    normalized_headers.append((key, value))
+            else:
+                normalized_headers.append((key, value))
+
+        if not content_type_found and scope.get("method", "").upper() == "POST":
+            normalized_headers.append((b"content-type", b"application/json"))
+
+        if not accept_found:
+            normalized_headers.append(
+                (b"accept", b"application/json, text/event-stream")
+            )
+
+        scope["headers"] = normalized_headers
+        await self.app(scope, receive, send)
 
 
 @dataclass(frozen=True)
@@ -320,6 +386,10 @@ try:
     )
 except Exception:
     pass
+
+# Wrap with header normalization middleware for MCP SDK compatibility.
+# See: https://github.com/openai/openai-apps-sdk-examples/issues/183
+app = MCPHeaderNormalizationMiddleware(app)
 
 
 if __name__ == "__main__":
