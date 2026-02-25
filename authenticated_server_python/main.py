@@ -229,7 +229,7 @@ def _build_www_authenticate_value(error: str, description: str) -> str:
     safe_error = error.replace('"', r"\"")
     safe_description = description.replace('"', r"\"")
     parts = [
-        f'error="{safe_error}"error_description="{safe_description}"',
+        f'error="{safe_error}", error_description="{safe_description}"',
     ]
     parts.append(f'resource_metadata="{PROTECTED_RESOURCE_METADATA_URL}"')
     return f"Bearer {', '.join(parts)}"
