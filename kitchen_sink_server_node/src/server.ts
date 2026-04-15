@@ -47,6 +47,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "..", "..");
 const ASSETS_DIR = path.resolve(ROOT_DIR, "assets");
 
+// MIME types for serving static files
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html",
+  ".js": "application/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".map": "application/json",
+};
+
 const TEMPLATE_URI = "ui://widget/kitchen-sink-lite.html";
 const MIME_TYPE = "text/html+skybridge";
 
@@ -298,6 +311,45 @@ const sessions = new Map<string, SessionRecord>();
 const ssePath = "/mcp";
 const postPath = "/mcp/messages";
 
+/**
+ * Serve static files from the assets directory.
+ * Returns true if a file was served, false otherwise.
+ */
+function serveStaticFile(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string
+): boolean {
+  // Remove leading slash and resolve path
+  const filename = pathname.replace(/^\//, "");
+  const filePath = path.join(ASSETS_DIR, filename);
+
+  // Security: prevent directory traversal
+  if (!filePath.startsWith(ASSETS_DIR)) {
+    return false;
+  }
+
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    return false;
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeType = MIME_TYPES[ext] || "application/octet-stream";
+
+  try {
+    const content = fs.readFileSync(filePath);
+    res.writeHead(200, {
+      "Content-Type": mimeType,
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "public, max-age=3600",
+    });
+    res.end(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function handleSseRequest(res: ServerResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   const server = createKitchenSinkServer();
@@ -392,6 +444,11 @@ const httpServer = createServer(
       return;
     }
 
+    // Serve static files from assets directory
+    if (req.method === "GET" && serveStaticFile(req, res, url.pathname)) {
+      return;
+    }
+
     res.writeHead(404).end("Not Found");
   }
 );
@@ -407,4 +464,9 @@ httpServer.listen(port, () => {
   console.log(
     `  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`
   );
+  console.log(`  Static assets served from: ${ASSETS_DIR}`);
+  console.log(`\nTo use with ngrok:`);
+  console.log(`  1. Run: ngrok http ${port}`);
+  console.log(`  2. Rebuild assets: BASE_URL=https://<your-ngrok-url>.ngrok-free.app pnpm run build`);
+  console.log(`  3. Add the ngrok URL to ChatGPT Settings > Connectors (e.g., https://<your-ngrok-url>.ngrok-free.app/mcp)`);
 });

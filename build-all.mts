@@ -197,7 +197,13 @@ const baseUrlCandidate = (
 ).trim();
 const baseUrlRaw = baseUrlCandidate.length > 0 ? baseUrlCandidate : defaultBaseUrl;
 const normalizedBaseUrl = baseUrlRaw.replace(/\/+$/, "") || defaultBaseUrl;
+
+// Check if we should inline assets (useful for ngrok free tier which shows interstitial pages)
+const inlineAssets = process.env.INLINE_ASSETS === "true";
 console.log(`Using BASE_URL ${normalizedBaseUrl} for generated HTML`);
+if (inlineAssets) {
+  console.log("INLINE_ASSETS=true: Inlining JS and CSS into HTML files");
+}
 
 const defaultApiBaseUrl = "http://localhost:8000";
 const apiBaseUrlCandidate = (
@@ -219,7 +225,29 @@ for (const name of builtNames) {
   const dir = outDir;
   const hashedHtmlPath = path.join(dir, `${name}-${h}.html`);
   const liveHtmlPath = path.join(dir, `${name}.html`);
-  const html = `<!doctype html>
+
+  let html: string;
+
+  if (inlineAssets) {
+    // Read the JS and CSS files and inline them
+    const jsPath = path.join(dir, `${name}-${h}.js`);
+    const cssPath = path.join(dir, `${name}-${h}.css`);
+    const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, "utf8") : "";
+    const cssContent = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, "utf8") : "";
+
+    html = `<!doctype html>
+<html>
+<head>
+  <style>${cssContent}</style>
+</head>
+<body>
+  <div id="${name}-root"></div>
+  <script type="module">${jsContent}</script>
+</body>
+</html>
+`;
+  } else {
+    html = `<!doctype html>
 <html>
 <head>
   <script>
@@ -233,6 +261,7 @@ for (const name of builtNames) {
 </body>
 </html>
 `;
+  }
   fs.writeFileSync(hashedHtmlPath, html, { encoding: "utf8" });
   fs.writeFileSync(liveHtmlPath, html, { encoding: "utf8" });
   console.log(`${liveHtmlPath}`);
