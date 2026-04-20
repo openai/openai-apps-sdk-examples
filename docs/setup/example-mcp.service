@@ -1,0 +1,51 @@
+# Example systemd service for MCP server (production)
+# This runs your MCP server as a systemd service with auto-restart
+#
+# Customize the following:
+#   - <APP_NAME> - Your app name (used in Description and SyslogIdentifier)
+#   - <USER> - User to run the service as (e.g., ubuntu, youruser)
+#   - <WORKING_DIR> - Path to your MCP server directory
+#   - <PNPM_PATH> or <NODE_PATH> - Path to pnpm/node executable
+#   - <START_COMMAND> - Command to start your server (e.g., pnpm start, node server.js, python main.py)
+#   - <PORT> - Port for your MCP server (optional, if needed)
+#   - Additional Environment variables as needed
+#
+# Installation:
+#   1. Customize this file
+#   2. Copy to: /etc/systemd/system/<your-app>-mcp.service
+#   3. Run: sudo systemctl daemon-reload
+#   4. Run: sudo systemctl enable <your-app>-mcp.service
+#   5. Run: sudo systemctl start <your-app>-mcp.service
+
+[Unit]
+Description=<APP_NAME> MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=<USER>
+WorkingDirectory=<WORKING_DIR>
+
+# Adjust PATH to include your runtime (Node.js, Python, etc.)
+Environment="PATH=<PNPM_PATH>:/usr/local/bin:/usr/bin:/bin"
+
+# Optional: Set port or other environment variables
+Environment="PORT=<PORT>"
+
+# Start command - customize for your stack
+# Node.js with pnpm: /path/to/pnpm start
+# Node.js direct: /usr/bin/node server.js
+# Python: /usr/bin/python3 main.py
+ExecStart=<START_COMMAND>
+
+# Auto-restart on failure
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=<APP_NAME>-mcp
+
+[Install]
+WantedBy=multi-user.target

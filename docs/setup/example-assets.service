@@ -1,0 +1,48 @@
+# Example systemd service for assets server (production)
+# This runs your static assets server as a systemd service with auto-restart
+# Only needed if using two-server architecture
+#
+# Customize the following:
+#   - <APP_NAME> - Your app name (used in Description and SyslogIdentifier)
+#   - <USER> - User to run the service as (e.g., ubuntu, youruser)
+#   - <WORKING_DIR> - Path to your assets directory
+#   - <PNPM_PATH> - Path to pnpm executable (if using pnpm)
+#   - <START_COMMAND> - Command to start your assets server
+#
+# Installation:
+#   1. Customize this file
+#   2. Copy to: /etc/systemd/system/<your-app>-assets.service
+#   3. Run: sudo systemctl daemon-reload
+#   4. Run: sudo systemctl enable <your-app>-assets.service
+#   5. Run: sudo systemctl start <your-app>-assets.service
+
+[Unit]
+Description=<APP_NAME> Assets Server
+After=network.target
+
+[Service]
+Type=simple
+User=<USER>
+WorkingDirectory=<WORKING_DIR>
+
+# Adjust PATH to include your runtime
+Environment="PATH=<PNPM_PATH>:/usr/local/bin:/usr/bin:/bin"
+
+# Start command for serving static assets
+# Examples:
+#   - pnpm: /path/to/pnpm -w run serve
+#   - serve: npx serve -l 4444 assets/
+#   - Python: python3 -m http.server 4444
+ExecStart=<START_COMMAND>
+
+# Auto-restart on failure
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=<APP_NAME>-assets
+
+[Install]
+WantedBy=multi-user.target
