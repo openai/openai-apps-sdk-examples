@@ -1,0 +1,48 @@
+# Example systemd service for persistent SSH reverse tunnel
+# This keeps your SSH tunnel running and auto-restarts on failure
+#
+# Customize the following:
+#   - <YOUR_USERNAME> - Your local username
+#   - <TUNNEL_PORT_1> - VM port forwarding to MCP server
+#   - <MCP_PORT> - Your local MCP server port
+#   - <TUNNEL_PORT_2> - VM port forwarding to assets (optional, remove if single-server)
+#   - <ASSETS_PORT> - Your local assets port (optional, remove if single-server)
+#   - <SSH_KEY_PATH> - Path to your SSH private key
+#   - <VM_USER> - Username on the VM
+#   - <VM_HOST> - VM IP address or hostname
+#
+# Installation:
+#   1. Customize this file with your values
+#   2. Copy to: /etc/systemd/system/mcp-tunnel.service
+#   3. Run: sudo systemctl daemon-reload
+#   4. Run: sudo systemctl enable mcp-tunnel.service
+#   5. Run: sudo systemctl start mcp-tunnel.service
+
+[Unit]
+Description=SSH Reverse Tunnel for MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=<YOUR_USERNAME>
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+
+# SSH tunnel to VM
+# For single-server architecture, remove the second -R flag
+ExecStart=/usr/bin/ssh \
+  -o ServerAliveInterval=60 \
+  -o ServerAliveCountMax=3 \
+  -o ExitOnForwardFailure=yes \
+  -N \
+  -R <TUNNEL_PORT_1>:localhost:<MCP_PORT> \
+  -R <TUNNEL_PORT_2>:localhost:<ASSETS_PORT> \
+  -i <SSH_KEY_PATH> \
+  <VM_USER>@<VM_HOST>
+
+# Graceful shutdown
+ExecStop=/bin/kill -TERM $MAINPID
+
+[Install]
+WantedBy=multi-user.target
