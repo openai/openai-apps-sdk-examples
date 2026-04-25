@@ -180,10 +180,10 @@ for (const out of outputs) {
   const dir = path.dirname(out);
   const ext = path.extname(out);
   const base = path.basename(out, ext);
-  const newName = path.join(dir, `${base}-${h}${ext}`);
+  const hashedPath = path.join(dir, `${base}-${h}${ext}`);
 
-  fs.renameSync(out, newName);
-  console.log(`${out} -> ${newName}`);
+  fs.copyFileSync(out, hashedPath);
+  console.log(`${out} -> ${hashedPath} (copied)`);
 }
 console.groupEnd();
 
