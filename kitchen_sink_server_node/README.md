@@ -23,4 +23,4 @@ pnpm --filter kitchen-sink-mcp-node start
 pnpm start
 ```
 
-The server listens on `http://localhost:8000/mcp` (SSE) and `POST /mcp/messages` for messages. You can change the port with `PORT=9000 pnpm start`.
+The server listens on `http://localhost:8000/mcp` and speaks MCP over the Streamable HTTP transport (single stateless endpoint). You can change the port with `PORT=9000 pnpm start`.

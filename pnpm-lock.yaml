@@ -173,12 +173,24 @@ importers:
   kitchen_sink_server_node:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^1.26.0
+        version: 1.26.0(zod@3.25.76)
+      cors:
+        specifier: ^2.8.5
+        version: 2.8.6
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@types/cors':
+        specifier: ^2.8.17
+        version: 2.8.19
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
       tsx:
         specifier: ^4.19.2
         version: 4.20.4
@@ -220,12 +232,24 @@ importers:
   pizzaz_server_node:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^1.26.0
+        version: 1.26.0(zod@3.25.76)
+      cors:
+        specifier: ^2.8.5
+        version: 2.8.6
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@types/cors':
+        specifier: ^2.8.17
+        version: 2.8.19
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
       tsx:
         specifier: ^4.19.2
         version: 4.20.4
@@ -627,9 +651,6 @@ packages:
         optional: true
       react-dom:
         optional: true
-
-  '@modelcontextprotocol/sdk@0.5.0':
-    resolution: {integrity: sha512-RXgulUX6ewvxjAG0kOpLMEdXXWkzWgaoCGaA2CwNW7cQCIphjpJhjpHSiaPdVCnisjRF/0Cm9KWHUuIoeiAblQ==}
 
   '@modelcontextprotocol/sdk@1.26.0':
     resolution: {integrity: sha512-Y5RmPncpiDtTXDbLKswIJzTqu2hyBKxTNsgKqKclDbhIgg1wgtf1fRuvxgTnRfcnxtvvgbIEcqUOzZrJ6iSReg==}
@@ -4556,12 +4577,6 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.57.1
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
-
-  '@modelcontextprotocol/sdk@0.5.0':
-    dependencies:
-      content-type: 1.0.5
-      raw-body: 3.0.1
-      zod: 3.25.76
 
   '@modelcontextprotocol/sdk@1.26.0(zod@3.25.76)':
     dependencies:
