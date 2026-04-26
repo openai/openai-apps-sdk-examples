@@ -5,20 +5,19 @@
  * - kitchen-sink-show: renders the widget with structured content, adding a processedAt/echoed demo.
  * - kitchen-sink-refresh: lightweight echo tool called from the widget via callTool.
  *
- * Uses @modelcontextprotocol/sdk over SSE transport. Make sure assets are built
- * (pnpm run build) so the widget HTML is available in /assets before starting.
+ * Uses @modelcontextprotocol/sdk over the Streamable HTTP transport. Make sure
+ * assets are built (pnpm run build) so the widget HTML is available in /assets
+ * before starting.
  */
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { URL, fileURLToPath } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import cors from "cors";
+import express from "express";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   ListResourceTemplatesRequestSchema,
@@ -121,7 +120,7 @@ const toolInputSchema = {
   },
   required: ["message"],
   additionalProperties: false,
-} as const;
+} satisfies Tool["inputSchema"];
 
 const refreshInputSchema = {
   type: "object",
@@ -130,7 +129,7 @@ const refreshInputSchema = {
   },
   required: ["message"],
   additionalProperties: false,
-} as const;
+} satisfies Tool["inputSchema"];
 
 const showParser = z.object({
   message: z.string(),
@@ -288,123 +287,43 @@ function createKitchenSinkServer(): Server {
   return server;
 }
 
-type SessionRecord = {
-  server: Server;
-  transport: SSEServerTransport;
-};
-
-const sessions = new Map<string, SessionRecord>();
-
-const ssePath = "/mcp";
-const postPath = "/mcp/messages";
-
-async function handleSseRequest(res: ServerResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  const server = createKitchenSinkServer();
-  const transport = new SSEServerTransport(postPath, res);
-  const sessionId = transport.sessionId;
-
-  sessions.set(sessionId, { server, transport });
-
-  transport.onclose = async () => {
-    sessions.delete(sessionId);
-    await server.close();
-  };
-
-  transport.onerror = (error) => {
-    console.error("SSE transport error", error);
-  };
-
-  try {
-    await server.connect(transport);
-  } catch (error) {
-    sessions.delete(sessionId);
-    console.error("Failed to start SSE session", error);
-    if (!res.headersSent) {
-      res.writeHead(500).end("Failed to establish SSE connection");
-    }
-  }
-}
-
-async function handlePostMessage(
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL
-) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "content-type");
-  const sessionId = url.searchParams.get("sessionId");
-
-  if (!sessionId) {
-    res.writeHead(400).end("Missing sessionId query parameter");
-    return;
-  }
-
-  const session = sessions.get(sessionId);
-
-  if (!session) {
-    res.writeHead(404).end("Unknown session");
-    return;
-  }
-
-  try {
-    await session.transport.handlePostMessage(req, res);
-  } catch (error) {
-    console.error("Failed to process message", error);
-    if (!res.headersSent) {
-      res.writeHead(500).end("Failed to process message");
-    }
-  }
-}
-
 const portEnv = Number(process.env.PORT ?? 8000);
 const port = Number.isFinite(portEnv) ? portEnv : 8000;
 
-const httpServer = createServer(
-  async (req: IncomingMessage, res: ServerResponse) => {
-    if (!req.url) {
-      res.writeHead(400).end("Missing URL");
-      return;
-    }
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-    const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+// Stateless Streamable HTTP: a fresh server + transport per request, with no
+// server-side session tracking. Replaces the legacy two-endpoint SSE design
+// (`/mcp` + `/mcp/messages?sessionId=...`) with a single MCP endpoint.
+app.all("/mcp", async (req, res) => {
+  const server = createKitchenSinkServer();
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+  });
 
-    if (
-      req.method === "OPTIONS" &&
-      (url.pathname === ssePath || url.pathname === postPath)
-    ) {
-      res.writeHead(204, {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type",
+  res.on("close", () => {
+    transport.close().catch(() => {});
+    server.close().catch(() => {});
+  });
+
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch (error) {
+    console.error("MCP error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: "2.0",
+        error: { code: -32603, message: "Internal server error" },
+        id: null,
       });
-      res.end();
-      return;
     }
-
-    if (req.method === "GET" && url.pathname === ssePath) {
-      await handleSseRequest(res);
-      return;
-    }
-
-    if (req.method === "POST" && url.pathname === postPath) {
-      await handlePostMessage(req, res, url);
-      return;
-    }
-
-    res.writeHead(404).end("Not Found");
   }
-);
-
-httpServer.on("clientError", (err: Error, socket) => {
-  console.error("HTTP client error", err);
-  socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
 });
 
-httpServer.listen(port, () => {
+app.listen(port, () => {
   console.log(`Kitchen Sink MCP server listening on http://localhost:${port}`);
-  console.log(`  SSE stream: GET http://localhost:${port}${ssePath}`);
-  console.log(
-    `  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`
-  );
+  console.log(`  MCP endpoint: http://localhost:${port}/mcp`);
 });

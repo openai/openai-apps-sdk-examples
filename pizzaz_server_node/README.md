@@ -21,7 +21,7 @@ If you prefer npm or yarn, adjust the command accordingly.
 pnpm start
 ```
 
-The script bootstraps the server over SSE (Server-Sent Events), which makes it compatible with the MCP Inspector as well as ChatGPT connectors. Once running you can list the tools and invoke any of the pizza experiences.
+The script bootstraps the server over the Streamable HTTP transport (single stateless `/mcp` endpoint, default port `8000`), which makes it compatible with the MCP Inspector as well as ChatGPT connectors. Once running you can list the tools and invoke any of the pizza experiences.
 
 Each tool responds with:
 
