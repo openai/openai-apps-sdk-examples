@@ -5,7 +5,6 @@ import fg from "fast-glob";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import pkg from "./package.json" with { type: "json" };
 import tailwindcss from "@tailwindcss/vite";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
@@ -42,11 +41,39 @@ const targets: string[] = [
   "get-host-context",
   "get-host-version",
 ];
-const cliTargetIndex = process.argv.indexOf("--target");
-const cliTarget = cliTargetIndex !== -1 ? process.argv[cliTargetIndex + 1] : null;
-if (cliTarget) {
+
+function cliTargets(argv: string[]): string[] {
+  const values: string[] = [];
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+
+    if (arg === "--target" || arg === "--targets") {
+      const value = argv[i + 1];
+      if (value) {
+        values.push(value);
+        i += 1;
+      }
+      continue;
+    }
+
+    if (arg.startsWith("--target=") || arg.startsWith("--targets=")) {
+      values.push(arg.slice(arg.indexOf("=") + 1));
+    }
+  }
+
+  return values.flatMap((value) =>
+    value
+      .split(",")
+      .map((target) => target.trim())
+      .filter(Boolean)
+  );
+}
+
+const requestedTargets = cliTargets(process.argv.slice(2));
+if (requestedTargets.length) {
   targets.length = 0;
-  targets.push(cliTarget);
+  targets.push(...requestedTargets);
 }
 
 const builtNames: string[] = [];
@@ -164,16 +191,27 @@ for (const file of entries) {
 }
 
 const outputs = fs
-  .readdirSync("assets")
+  .readdirSync(outDir)
   .filter((f) => f.endsWith(".js") || f.endsWith(".css"))
-  .map((f) => path.join("assets", f))
+  .sort()
+  .map((f) => path.join(outDir, f))
   .filter((p) => fs.existsSync(p));
 
-const h = crypto
-  .createHash("sha256")
-  .update(pkg.version, "utf8")
-  .digest("hex")
-  .slice(0, 4);
+const outputHash = crypto.createHash("sha256");
+for (const out of outputs) {
+  outputHash.update(path.basename(out), "utf8");
+  outputHash.update("\0", "utf8");
+  outputHash.update(fs.readFileSync(out));
+  outputHash.update("\0", "utf8");
+}
+const assetHashSalt = (process.env.ASSET_HASH_SALT ?? "").trim();
+if (assetHashSalt) {
+  outputHash.update("ASSET_HASH_SALT", "utf8");
+  outputHash.update("\0", "utf8");
+  outputHash.update(assetHashSalt, "utf8");
+  outputHash.update("\0", "utf8");
+}
+const h = outputHash.digest("hex").slice(0, 8);
 
 console.group("Hashing outputs");
 for (const out of outputs) {
@@ -188,16 +226,9 @@ for (const out of outputs) {
 console.groupEnd();
 
 console.log("new hash: ", h);
-
-const defaultBaseUrl = "http://localhost:4444";
-const baseUrlCandidate = (
-  process.env.VITE_BASE_URL ??
-  process.env.BASE_URL ??
-  ""
-).trim();
-const baseUrlRaw = baseUrlCandidate.length > 0 ? baseUrlCandidate : defaultBaseUrl;
-const normalizedBaseUrl = baseUrlRaw.replace(/\/+$/, "") || defaultBaseUrl;
-console.log(`Using BASE_URL ${normalizedBaseUrl} for generated HTML`);
+if (assetHashSalt) {
+  console.log("Using ASSET_HASH_SALT for generated asset URLs");
+}
 
 const defaultApiBaseUrl = "http://localhost:8000";
 const apiBaseUrlCandidate = (
@@ -209,10 +240,20 @@ const apiBaseUrlRaw =
   apiBaseUrlCandidate.length > 0 ? apiBaseUrlCandidate : defaultApiBaseUrl;
 const normalizedApiBaseUrl =
   apiBaseUrlRaw.replace(/\/+$/, "") || defaultApiBaseUrl;
+const defaultBaseUrl = `${normalizedApiBaseUrl}/assets`;
+const baseUrlCandidate = (
+  process.env.VITE_BASE_URL ??
+  process.env.BASE_URL ??
+  ""
+).trim();
+const baseUrlRaw =
+  baseUrlCandidate.length > 0 ? baseUrlCandidate : defaultBaseUrl;
+const normalizedBaseUrl = baseUrlRaw.replace(/\/+$/, "") || defaultBaseUrl;
 const appUrlConfigJson = JSON.stringify({
   apiBaseUrl: normalizedApiBaseUrl,
   assetsBaseUrl: normalizedBaseUrl,
 });
+console.log(`Using BASE_URL ${normalizedBaseUrl} for generated HTML`);
 console.log(`Using API_BASE_URL ${normalizedApiBaseUrl} for generated HTML`);
 
 for (const name of builtNames) {

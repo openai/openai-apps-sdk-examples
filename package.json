@@ -4,7 +4,7 @@
   "description": "",
   "main": "host/main.ts",
   "scripts": {
-    "build": "tsx ./build-all.mts",
+    "build": "node --import tsx ./build-all.mts",
     "serve": "serve -s ./assets -p 4444 --cors",
     "dev": "vite --config vite.config.mts",
     "tsc": "tsc -b",
