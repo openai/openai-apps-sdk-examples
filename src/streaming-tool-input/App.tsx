@@ -1,19 +1,10 @@
 import { useApp } from "@modelcontextprotocol/ext-apps/react";
 import type { App as McpApp } from "@modelcontextprotocol/ext-apps";
 import { useState } from "react";
-import { HighlightedCode } from "../highlight-code";
-
-interface Step {
-  id: number;
-  title: string;
-  summary: string;
-  code?: string;
-}
-
-interface DemoData {
-  toolName: string;
-  steps: Step[];
-}
+import { Badge } from "@openai/apps-sdk-ui/components/Badge";
+import { CodeBlock } from "@openai/apps-sdk-ui/components/CodeBlock";
+import { BasicsShell, CodeWalkthrough, StatusAlert } from "../mcp-app-basics/components";
+import type { DemoData } from "../mcp-app-basics/types";
 
 interface StoryInput {
   title?: string;
@@ -30,14 +21,14 @@ function formatStory(story: StoryInput, { fadeTrailing }: { fadeTrailing: boolea
   return (
     <>
       {story.paragraphs && story.paragraphs.length > 0 && (
-        <div className="space-y-3 mt-3 border-t border-gray-200 pt-3">
+        <div className="mt-3 space-y-3 border-t border-subtle pt-3">
           {story.paragraphs.map((paragraph, i) => (
             <p
               key={i}
               className={`text-sm leading-relaxed ${
                 fadeTrailing && i === story.paragraphs!.length - 1
-                  ? "text-gray-400"
-                  : "text-gray-700"
+                  ? "text-tertiary"
+                  : "text-primary"
               }`}
             >
               {paragraph}
@@ -46,8 +37,8 @@ function formatStory(story: StoryInput, { fadeTrailing }: { fadeTrailing: boolea
         </div>
       )}
       {story.moral !== undefined && (
-        <p className={`mt-3 pt-3 border-t border-gray-200 text-sm italic ${
-          fadeTrailing ? "text-gray-400" : "text-gray-600"
+        <p className={`mt-3 border-t border-subtle pt-3 text-sm italic ${
+          fadeTrailing ? "text-tertiary" : "text-secondary"
         }`}>
           Moral: {story.moral || "..."}
         </p>
@@ -80,116 +71,77 @@ export default function App() {
   });
 
   if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-32 p-4">
-        <p className="text-red-600 text-sm">Connection failed: {error.message}</p>
-      </div>
-    );
+    return <BasicsShell title="Streaming Tool Input" error={error} isConnected={false} />;
   }
 
   if (!app) {
-    return (
-      <div className="flex items-center justify-center min-h-32 p-4">
-        <p className="text-gray-500 text-sm">Connecting...</p>
-      </div>
-    );
+    return <BasicsShell title="Streaming Tool Input" isConnected={false} />;
   }
-
-  const phaseColors: Record<Phase, string> = {
-    waiting: "bg-gray-100 border-gray-300 text-gray-700",
-    streaming: "bg-blue-50 border-blue-300 text-blue-700",
-    complete: "bg-green-50 border-green-300 text-green-700",
-  };
 
   const phaseLabels: Record<Phase, string> = {
     waiting: "Waiting for model to call tool...",
     streaming: "Streaming input...",
     complete: "Complete",
   };
+  const phaseTone: Record<Phase, "secondary" | "info" | "success"> = {
+    waiting: "secondary",
+    streaming: "info",
+    complete: "success",
+  };
 
   return (
-    <div className="flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 max-w-xl w-full">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Streaming Tool Input</h1>
-        <p className="text-gray-600 mb-4">
-          Watch tool arguments stream in progressively as the model generates them.
-        </p>
+    <BasicsShell
+      title="Streaming Tool Input"
+      description="Watch tool arguments render progressively as the model generates them."
+      isConnected={true}
+      badge={<Badge color={phaseTone[phase]}>{phaseLabels[phase]}</Badge>}
+    >
+      {!story ? (
+        <StatusAlert
+          tone="info"
+          title="Waiting for streamed arguments"
+          description="Ask ChatGPT to show streaming tool input, and this widget will preview the story fields as they arrive."
+        />
+      ) : null}
 
-        {/* Phase indicator */}
-        <div className={`mb-4 px-4 py-2 border rounded-lg text-sm font-medium ${phaseColors[phase]}`}>
-          {phaseLabels[phase]}
+      {story ? (
+        <div
+          className={`mb-4 rounded-lg border p-4 ${
+            phase === "streaming"
+              ? "border-info bg-surface-secondary"
+              : "border-subtle bg-surface-secondary"
+          }`}
+        >
+          {story.title !== undefined ? (
+            <h2 className="heading-md mb-1 text-primary">{story.title || "..."}</h2>
+          ) : null}
+          {story.author !== undefined ? (
+            <p className="mb-1 text-sm text-secondary">
+              by {story.author || "..."}
+            </p>
+          ) : null}
+          {story.genre !== undefined ? (
+            <p className="text-xs italic text-tertiary">{story.genre || "..."}</p>
+          ) : null}
+          {story.setting !== undefined ? (
+            <p className="mb-3 text-xs text-secondary">
+              Setting: {story.setting || "..."}
+            </p>
+          ) : null}
+          {formatStory(story, { fadeTrailing: phase === "streaming" })}
         </div>
+      ) : null}
 
-        {/* Story preview card */}
-        {story && (
-          <div className={`mb-4 border rounded-xl p-5 ${
-            phase === "streaming" ? "border-blue-200 bg-blue-50/50" : "border-gray-200 bg-gray-50"
-          }`}>
-            {story.title !== undefined && (
-              <h2 className={`text-xl font-bold mb-1 ${phase === "streaming" ? "text-gray-700" : "text-gray-900"}`}>
-                {story.title || "..."}
-              </h2>
-            )}
-            {story.author !== undefined && (
-              <p className={`text-sm mb-1 ${phase === "streaming" ? "text-gray-500" : "text-gray-600"}`}>
-                by {story.author || "..."}
-              </p>
-            )}
-            {story.genre !== undefined && (
-              <p className={`text-xs italic ${phase === "streaming" ? "text-gray-400" : "text-gray-500"}`}>
-                {story.genre || "..."}
-              </p>
-            )}
-            {story.setting !== undefined && (
-              <p className={`text-xs mb-3 ${phase === "streaming" ? "text-gray-400" : "text-gray-500"}`}>
-                Setting: {story.setting || "..."}
-              </p>
-            )}
-            {formatStory(story, { fadeTrailing: phase === "streaming" })}
-          </div>
-        )}
+      {story ? (
+        <div className="mb-4 space-y-2">
+          <p className="text-xs font-medium uppercase text-secondary">
+            Current streamed input
+          </p>
+          <CodeBlock language="json">{JSON.stringify(story, null, 2)}</CodeBlock>
+        </div>
+      ) : null}
 
-        {data && (
-          <details className="mt-4 border-t border-gray-100 pt-3">
-            <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700">
-              See the code and explanation...
-            </summary>
-            <ol className="mt-3 space-y-4 text-sm text-gray-500">
-              {data.steps.map((step) => (
-                <li key={step.id}>
-                  <span className="font-medium text-gray-700">
-                    {step.id}. {step.title}
-                  </span>
-                  <span className="text-gray-400"> — {step.summary}</span>
-                  {step.code && (
-                    <pre className="mt-1.5 px-3 py-2.5 bg-gray-900 text-gray-300 text-xs leading-relaxed rounded-lg overflow-x-auto whitespace-pre">
-                      <code><HighlightedCode code={step.code} /></code>
-                    </pre>
-                  )}
-                </li>
-              ))}
-            </ol>
-            <div className="mt-3 text-xs text-gray-400 space-y-1">
-              <a
-                href="https://modelcontextprotocol.io/docs/extensions/apps"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block hover:text-blue-500 underline"
-              >
-                MCP Apps docs
-              </a>
-              <a
-                href="https://modelcontextprotocol.github.io/ext-apps/api/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block hover:text-blue-500 underline"
-              >
-                API reference
-              </a>
-            </div>
-          </details>
-        )}
-      </div>
-    </div>
+      <CodeWalkthrough steps={data?.steps} />
+    </BasicsShell>
   );
 }

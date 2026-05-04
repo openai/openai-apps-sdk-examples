@@ -5,7 +5,9 @@
   "private": true,
   "description": "Minimal MCP App server that demonstrates registerAppTool and registerAppResource.",
   "scripts": {
-    "start": "tsx src/server.ts"
+    "build:widgets": "sh ./scripts/build-widgets.sh",
+    "server:start": "node --import tsx src/server.ts",
+    "start": "sh ./scripts/start.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.0.1",
