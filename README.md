@@ -137,7 +137,7 @@ uvicorn pizzaz_server_python.main:app --port 8000
 python -m venv .venv
 source .venv/bin/activate
 pip install -r authenticated_server_python/requirements.txt
-uvicorn authenticated_python_server.main:app --port 8000
+uvicorn authenticated_server_python.main:app --port 8000
 ```
 
 ### Solar system Python server
