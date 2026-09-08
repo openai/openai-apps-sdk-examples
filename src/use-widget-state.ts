@@ -11,7 +11,7 @@ export function useWidgetState<T extends UnknownObject>(
 export function useWidgetState<T extends UnknownObject>(
   defaultState?: T | (() => T | null) | null
 ): readonly [T | null, (state: SetStateAction<T | null>) => void] {
-  const widgetStateFromWindow = useOpenAiGlobal("widgetState") as T;
+  const widgetStateFromWindow = useOpenAiGlobal("widgetState") as T | null;
 
   const [widgetState, _setWidgetState] = useState<T | null>(() => {
     if (widgetStateFromWindow != null) {
@@ -24,7 +24,9 @@ export function useWidgetState<T extends UnknownObject>(
   });
 
   useEffect(() => {
-    _setWidgetState(widgetStateFromWindow);
+    if (widgetStateFromWindow != null) {
+      _setWidgetState(widgetStateFromWindow);
+    }
   }, [widgetStateFromWindow]);
 
   const setWidgetState = useCallback(
