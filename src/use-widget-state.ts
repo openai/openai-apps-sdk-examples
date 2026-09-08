@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { useOpenAiGlobal } from "./use-openai-global";
 import type { UnknownObject } from "./types";
 
@@ -12,6 +12,7 @@ export function useWidgetState<T extends UnknownObject>(
   defaultState?: T | (() => T | null) | null
 ): readonly [T | null, (state: SetStateAction<T | null>) => void] {
   const widgetStateFromWindow = useOpenAiGlobal("widgetState") as T | null;
+  const previousHostState = useRef(widgetStateFromWindow);
 
   const [widgetState, _setWidgetState] = useState<T | null>(() => {
     if (widgetStateFromWindow != null) {
@@ -24,7 +25,8 @@ export function useWidgetState<T extends UnknownObject>(
   });
 
   useEffect(() => {
-    if (widgetStateFromWindow != null) {
+    if (!Object.is(previousHostState.current, widgetStateFromWindow)) {
+      previousHostState.current = widgetStateFromWindow;
       _setWidgetState(widgetStateFromWindow);
     }
   }, [widgetStateFromWindow]);
