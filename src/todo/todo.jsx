@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo, forwardRef } from "react";
+import React, { useRef, useState, useEffect, useMemo, useCallback, forwardRef } from "react";
 import {
   AnimatePresence,
   motion,
@@ -810,9 +810,9 @@ export function App() {
 
   const [rowRefs, setRowRefs] = useState({}); // index -> ref
 
-  const registerRowRef = (index, rowRef) => {
+  const registerRowRef = useCallback((index, rowRef) => {
     setRowRefs((prev) => ({ ...prev, [index]: rowRef }));
-  };
+  }, []);
 
   // If we default-opened a list via isCurrentlyOpen, try to capture its row ref for ZoomViewer
   useEffect(() => {
