@@ -246,6 +246,9 @@ export class GameInstance extends EventEmitter {
     if (!judge) {
       throw new Error("No judge found");
     }
+    if (judge.type === "human") {
+      throw new Error("Cannot submit CPU judgement while waiting for the human judge");
+    }
 
     const reaction = sanitizeCpuReaction(
       result.reactionToWinningCard,
