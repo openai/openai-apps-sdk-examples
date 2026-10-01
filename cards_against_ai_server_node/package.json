@@ -5,6 +5,7 @@
   "private": true,
   "description": "MCP server that exposes the Cards Against AI widget.",
   "scripts": {
+    "test": "tsx --test src/*.test.ts",
     "build": "cd .. && pnpm run build -- --target cards-against-ai",
     "build:check": "cd .. && pnpm run build -- --target cards-against-ai && npx tsc -p tsconfig.app.json --noEmit && npx tsc -p cards_against_ai_server_node/tsconfig.json --noEmit",
     "dev": "cd .. && pnpm run build -- --target cards-against-ai && cd cards_against_ai_server_node && tsx src/server.ts",
