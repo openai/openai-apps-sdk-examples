@@ -93,7 +93,7 @@ mcp = FastMCP(
 )
 
 
-@mcp.resource(TEMPLATE_URI, "Kitchen sink lite widget", mime_type=MIME_TYPE)
+@mcp.resource(TEMPLATE_URI, name="Kitchen sink lite widget", mime_type=MIME_TYPE)
 async def kitchen_sink_template() -> str:
     return load_widget_html()
 
@@ -149,7 +149,20 @@ async def kitchen_sink_refresh(
     )
 
 
-app = mcp.fastapi
+app = mcp.streamable_http_app()
+
+try:
+    from starlette.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=False,
+    )
+except Exception:
+    pass
 
 if __name__ == "__main__":
     import uvicorn
