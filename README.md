@@ -93,6 +93,8 @@ To iterate on your components locally, you can also launch the Vite dev server:
 pnpm run dev
 ```
 
+Open [`http://localhost:4444`](http://localhost:4444) to see the available examples, then select a widget (for example, [`/pizzaz-list.html`](http://localhost:4444/pizzaz-list.html)). This previews the UI locally; ChatGPT host APIs such as `window.openai.callTool` are not available in a standalone browser tab. Use [Testing in ChatGPT](#testing-in-chatgpt) to exercise the full tool-to-widget flow.
+
 ## Serve the static assets
 
 All of the MCP servers expect the bundled HTML, JS, and CSS to be served from the local static file server. After every build, start the server before launching any MCP processes:
@@ -102,6 +104,8 @@ pnpm run serve
 ```
 
 The assets are exposed at [`http://localhost:4444`](http://localhost:4444) with CORS enabled so that local tooling (including MCP inspectors) can fetch them.
+
+Run either `pnpm run dev` or `pnpm run serve` at a time: both use port 4444 by default. The example index described above is provided by the Vite dev server; the static server serves the generated files in `assets/`.
 
 > **Note:** The Python Pizzaz server caches widget HTML with `functools.lru_cache`. If you rebuild or manually edit files in `assets/`, restart the MCP server so it picks up the updated markup.
 
@@ -121,6 +125,8 @@ The repository ships several demo MCP servers that highlight different widget bu
 cd pizzaz_server_node
 pnpm start
 ```
+
+The MCP server uses port 8000 by default. Opening `http://localhost:8000/` in a browser returns `404 Not Found` because it does not serve a UI page. Opening `http://localhost:8000/mcp` connects to its SSE stream and may display an `endpoint` event rather than a widget. Both are expected: use the Vite dev server on port 4444 for a local UI preview, or connect an MCP client to `/mcp` to interact with tools and resources. To render widgets in ChatGPT, follow [Testing in ChatGPT](#testing-in-chatgpt).
 
 ### Pizzaz Python server
 
