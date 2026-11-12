@@ -13,11 +13,12 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 TOOL_NAME = "add_to_cart"
+UPDATE_TOOL_NAME = "update_cart"
 WIDGET_TEMPLATE_URI = "ui://widget/shopping-cart.html"
 WIDGET_TITLE = "Start shopping cart"
 WIDGET_INVOKING = "Preparing shopping cart"
 WIDGET_INVOKED = "Shopping cart ready"
-MIME_TYPE = "text/html+skybridge"
+MIME_TYPE = "text/html;profile=mcp-app"
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 
@@ -86,7 +87,44 @@ class AddToCartInput(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
+class UpdateCartInput(BaseModel):
+    """Payload for replacing the contents of an existing cart."""
+
+    cart_id: str = Field(
+        ...,
+        alias="cartId",
+        description="Identifier of the cart to update.",
+    )
+    items: List[CartItem] = Field(
+        ...,
+        description="Complete list of items that should remain in the cart.",
+    )
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 TOOL_INPUT_SCHEMA = AddToCartInput.model_json_schema(by_alias=True)
+UPDATE_TOOL_INPUT_SCHEMA = UpdateCartInput.model_json_schema(by_alias=True)
+CART_OUTPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "cartId": {"type": "string"},
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "quantity": {"type": "integer", "minimum": 1},
+                },
+                "required": ["name", "quantity"],
+                "additionalProperties": True,
+            },
+        },
+    },
+    "required": ["cartId", "items"],
+    "additionalProperties": False,
+}
 
 carts: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -113,10 +151,12 @@ def _get_or_create_cart(cart_id: str | None) -> str:
 
 def _widget_meta() -> Dict[str, Any]:
     return {
-        "openai/outputTemplate": WIDGET_TEMPLATE_URI,
+        "ui": {
+            "resourceUri": WIDGET_TEMPLATE_URI,
+            "visibility": ["model", "app"],
+        },
         "openai/toolInvocation/invoking": WIDGET_INVOKING,
         "openai/toolInvocation/invoked": WIDGET_INVOKED,
-        "openai/widgetAccessible": True,
     }
 
 
@@ -128,7 +168,30 @@ async def _list_tools() -> List[types.Tool]:
             title="Add items to cart",
             description="Adds the provided items to the active cart and returns its state.",
             inputSchema=TOOL_INPUT_SCHEMA,
+            outputSchema=CART_OUTPUT_SCHEMA,
             _meta=_widget_meta(),
+            annotations={
+                "readOnlyHint": False,
+                "destructiveHint": False,
+                "openWorldHint": False,
+            },
+        ),
+        types.Tool(
+            name=UPDATE_TOOL_NAME,
+            title="Update cart from the widget",
+            description=(
+                "Replace the cart contents after a user changes quantities in the "
+                "shopping cart widget. This tool is for the app UI only."
+            ),
+            inputSchema=UPDATE_TOOL_INPUT_SCHEMA,
+            outputSchema=CART_OUTPUT_SCHEMA,
+            _meta={"ui": {"visibility": ["app"]}},
+            annotations={
+                "readOnlyHint": False,
+                "destructiveHint": False,
+                "openWorldHint": False,
+                "idempotentHint": True,
+            },
         )
     ]
 
@@ -142,7 +205,6 @@ async def _list_resources() -> List[types.Resource]:
             uri=WIDGET_TEMPLATE_URI,
             description="Markup for the shopping cart widget.",
             mimeType=MIME_TYPE,
-            _meta=_widget_meta(),
         )
     ]
 
@@ -161,14 +223,13 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
             uri=WIDGET_TEMPLATE_URI,
             mimeType=MIME_TYPE,
             text=SHOPPING_CART_HTML,
-            _meta=_widget_meta(),
         )
     ]
     return types.ServerResult(types.ReadResourceResult(contents=contents))
 
 
 async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
-    if req.params.name != TOOL_NAME:
+    if req.params.name not in {TOOL_NAME, UPDATE_TOOL_NAME}:
         return types.ServerResult(
             types.CallToolResult(
                 content=[
@@ -181,8 +242,13 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
+    input_model = (
+        AddToCartInput
+        if req.params.name == TOOL_NAME
+        else UpdateCartInput
+    )
     try:
-        payload = AddToCartInput.model_validate(req.params.arguments or {})
+        payload = input_model.model_validate(req.params.arguments or {})
     except ValidationError as exc:
         return types.ServerResult(
             types.CallToolResult(
@@ -195,25 +261,52 @@ async def _handle_call_tool(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    cart_id = _get_or_create_cart(payload.cart_id)
-    #   cart_items = carts[cart_id]
-    cart_items = []
-    for item in payload.items:
-        cart_items.append(_serialize_item(item))
+    if req.params.name == TOOL_NAME:
+        cart_id = _get_or_create_cart(payload.cart_id)
+        cart_items = [dict(item) for item in carts[cart_id]]
+        for item in payload.items:
+            serialized_item = _serialize_item(item)
+            existing_index = next(
+                (
+                    index
+                    for index, existing_item in enumerate(cart_items)
+                    if existing_item.get("name") == serialized_item["name"]
+                ),
+                None,
+            )
+            if existing_index is None:
+                cart_items.append(serialized_item)
+                continue
 
+            existing_item = cart_items[existing_index]
+            cart_items[existing_index] = {
+                **existing_item,
+                **serialized_item,
+                "quantity": existing_item.get("quantity", 0)
+                + serialized_item["quantity"],
+            }
+        message = f"Cart {cart_id} now has {len(cart_items)} item(s)."
+    else:
+        cart_id = payload.cart_id
+        if cart_id not in carts:
+            return types.ServerResult(
+                types.CallToolResult(
+                    content=[types.TextContent(type="text", text="Cart not found.")],
+                    isError=True,
+                )
+            )
+        cart_items = [_serialize_item(item) for item in payload.items]
+        message = f"Cart {cart_id} updated."
+
+    carts[cart_id] = cart_items
     structured_content = {
         "cartId": cart_id,
         "items": [dict(item) for item in cart_items],
     }
-    meta = _widget_meta()
-    meta["openai/widgetSessionId"] = cart_id
-
-    message = f"Cart {cart_id} now has {len(cart_items)} item(s)."
     return types.ServerResult(
         types.CallToolResult(
             content=[types.TextContent(type="text", text=message)],
             structuredContent=structured_content,
-            _meta=meta,
         )
     )
 

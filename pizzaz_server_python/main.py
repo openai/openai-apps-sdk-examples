@@ -3,9 +3,8 @@
 The server mirrors the Node example in this repository and exposes
 widget-backed tools that render the Pizzaz UI bundle. Each handler returns the
 HTML shell via an MCP resource and echoes the selected topping as structured
-content so the ChatGPT client can hydrate the widget. The module also wires the
-handlers into an HTTP/SSE stack so you can run the server with uvicorn on port
-8000, matching the Node transport behavior."""
+content so the MCP Apps client can hydrate the widget. The module also wires
+the handlers into a Streamable HTTP app for uvicorn on port 8000."""
 
 from __future__ import annotations
 
@@ -101,7 +100,7 @@ widgets: List[PizzazWidget] = [
 ]
 
 
-MIME_TYPE = "text/html+skybridge"
+MIME_TYPE = "text/html;profile=mcp-app"
 
 
 WIDGETS_BY_ID: Dict[str, PizzazWidget] = {
@@ -168,18 +167,21 @@ def _resource_description(widget: PizzazWidget) -> str:
 
 def _tool_meta(widget: PizzazWidget) -> Dict[str, Any]:
     return {
-        "openai/outputTemplate": widget.template_uri,
-        "openai/toolInvocation/invoking": widget.invoking,
-        "openai/toolInvocation/invoked": widget.invoked,
-        "openai/widgetAccessible": True,
-    }
-
-
-def _tool_invocation_meta(widget: PizzazWidget) -> Dict[str, Any]:
-    return {
+        "ui": {
+            "resourceUri": widget.template_uri,
+            "visibility": ["model", "app"],
+        },
         "openai/toolInvocation/invoking": widget.invoking,
         "openai/toolInvocation/invoked": widget.invoked,
     }
+
+
+TOOL_OUTPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {"pizzaTopping": {"type": "string"}},
+    "required": ["pizzaTopping"],
+    "additionalProperties": False,
+}
 
 
 @mcp._mcp_server.list_tools()
@@ -190,6 +192,7 @@ async def _list_tools() -> List[types.Tool]:
             title=widget.title,
             description=widget.title,
             inputSchema=deepcopy(TOOL_INPUT_SCHEMA),
+            outputSchema=deepcopy(TOOL_OUTPUT_SCHEMA),
             _meta=_tool_meta(widget),
             # To disable the approval prompt for the tools
             annotations={
@@ -211,7 +214,6 @@ async def _list_resources() -> List[types.Resource]:
             uri=widget.template_uri,
             description=_resource_description(widget),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(widget),
         )
         for widget in widgets
     ]
@@ -226,7 +228,6 @@ async def _list_resource_templates() -> List[types.ResourceTemplate]:
             uriTemplate=widget.template_uri,
             description=_resource_description(widget),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(widget),
         )
         for widget in widgets
     ]
@@ -247,7 +248,6 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
             uri=widget.template_uri,
             mimeType=MIME_TYPE,
             text=widget.html,
-            _meta=_tool_meta(widget),
         )
     ]
 
@@ -286,7 +286,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
         )
 
     topping = payload.pizza_topping
-    meta = _tool_invocation_meta(widget)
 
     return types.ServerResult(
         types.CallToolResult(
@@ -297,7 +296,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                 )
             ],
             structuredContent={"pizzaTopping": topping},
-            _meta=meta,
         )
     )
 

@@ -57,6 +57,26 @@ const GET_HOST_CONTEXT_URI =
   "ui://get-host-context/get-host-context.html";
 const GET_HOST_VERSION_URI =
   "ui://get-host-version/get-host-version.html";
+
+const walkthroughStepSchema = z.object({
+  id: z.number().int(),
+  title: z.string(),
+  summary: z.string(),
+  code: z.string(),
+});
+const walkthroughOutputSchema = {
+  toolName: z.string(),
+  steps: z.array(walkthroughStepSchema),
+};
+const showToolResultOutputSchema = {
+  greeting: z.string(),
+  message: z.string(),
+  timestamp: z.string(),
+  toolName: z.string(),
+  inputReceived: z.object({ name: z.string() }),
+  steps: z.array(walkthroughStepSchema),
+};
+
 function readWidgetHtml(widgetName: string): string {
   if (!fs.existsSync(ASSETS_DIR)) {
     throw new Error(
@@ -122,6 +142,7 @@ function createServer(): McpServer {
           .optional()
           .describe("Optional name to greet (defaults to 'World')"),
       },
+      outputSchema: showToolResultOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -242,6 +263,7 @@ function createServer(): McpServer {
         "have a widget chat or talk to the AI, trigger a follow-up model response from a component, " +
         "or enable two-way communication between a widget and the model.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -336,6 +358,7 @@ function createServer(): McpServer {
         "update what the model knows without sending a visible message, or pass data to the model " +
         "silently.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -432,6 +455,7 @@ function createServer(): McpServer {
         'with visibility: ["app"]. Use when the user asks how to call a tool from a widget, ' +
         "invoke server-side logic from a component, use callServerTool, or create app-only tools.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -565,6 +589,7 @@ function createServer(): McpServer {
         "like ChatGPT, use CSS variables from the host, detect light or dark mode, or adapt to " +
         "theme changes.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -765,6 +790,7 @@ function createServer(): McpServer {
         "the request based on its security policy. Use when the user asks how to open a link from " +
         "a widget, navigate to an external URL, launch a browser tab, or handle link denial.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -881,6 +907,7 @@ function createServer(): McpServer {
         "requested. Use when the user asks how to go fullscreen, change widget size, use picture-in-picture, " +
         "request display mode, or check available display modes.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -1033,6 +1060,7 @@ function createServer(): McpServer {
           .string()
           .describe("The moral or takeaway of the story (1 sentence)"),
       },
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -1166,6 +1194,7 @@ function createServer(): McpServer {
         "and message. Use when the user asks how to check host capabilities, detect supported " +
         "features, use getHostCapabilities, or query what the host can do.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -1283,6 +1312,7 @@ function createServer(): McpServer {
         "context, detect theme or locale, listen for context changes, use getHostContext, or react " +
         "to environment changes.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -1390,6 +1420,7 @@ function createServer(): McpServer {
         "Returns the host's name and version string. Use when the user asks how to identify the " +
         "host, get the host name or version, use getHostVersion, or detect which host is running.",
       inputSchema: {},
+      outputSchema: walkthroughOutputSchema,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

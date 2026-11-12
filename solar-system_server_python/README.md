@@ -28,16 +28,14 @@ it first to avoid import conflicts.
 python main.py
 ```
 
-This boots a FastAPI app with uvicorn on `http://127.0.0.1:8000` (equivalently
-`uvicorn solar-system_server_python.main:app --port 8000`). The server exposes
-streaming endpoints compatible with the MCP Inspector and ChatGPT connectors:
+This boots a Streamable HTTP app with uvicorn at `http://127.0.0.1:8000/mcp`
+(equivalently `uvicorn solar-system_server_python.main:app --port 8000`). Connect
+with the MCP Inspector or follow OpenAI's
+[connect and test guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 
-- `GET /mcp` provides the SSE stream.
-- `POST /mcp/messages?sessionId=...` receives follow-up messages for a session.
-
-Each tool call returns a small JSON payload describing the requested planet plus
-metadata that embeds the solar-system widget, so the Apps SDK can render the 3D
-experience inline.
+The tool declares an output schema and returns a small structured payload
+describing the requested planet. Its `_meta.ui.resourceUri` points to the MCP
+HTML resource served as `text/html;profile=mcp-app`.
 
 ## Next steps
 

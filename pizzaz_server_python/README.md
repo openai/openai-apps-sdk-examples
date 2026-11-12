@@ -28,17 +28,18 @@ pip install -r requirements.txt
 python main.py
 ```
 
-This boots a FastAPI app with uvicorn on `http://127.0.0.1:8000` (equivalently `uvicorn pizzaz_server_python.main:app --port 8000`). The endpoints mirror the Node demo:
+This boots the Streamable HTTP app with uvicorn at `http://127.0.0.1:8000/mcp` (equivalently `uvicorn pizzaz_server_python.main:app --port 8000`). Connect with the MCP Inspector or follow OpenAI's [connect and test guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 
-- `GET /mcp` exposes the SSE stream.
-- `POST /mcp/messages?sessionId=...` accepts follow-up messages for an active session.
+Cross-origin requests are allowed so you can drive the server from local tooling or the MCP Inspector. Each tool declares an output schema and returns structured content that echoes the requested topping. The tool descriptor's `_meta.ui.resourceUri` points to the matching MCP HTML resource (`text/html;profile=mcp-app`).
 
-Cross-origin requests are allowed so you can drive the server from local tooling or the MCP Inspector. Each tool returns structured content that echoes the requested topping plus metadata that points to the correct Skybridge widget shell, matching the original Pizzaz documentation.
+The Pizzaz shop is a UI-only mockup. Its client-side widget state is suitable
+for illustrating presentation behavior, not for authoritative cart data or
+real checkout; use the server-backed shopping-cart example for that pattern.
 
 ## Next steps
 
 Use these handlers as a starting point when wiring in real data, authentication, or localization support. The structure demonstrates how to:
 
 1. Register reusable UI resources that load static HTML bundles.
-2. Associate tools with those widgets via `_meta.openai/outputTemplate`.
+2. Associate tools with those widgets via `_meta.ui.resourceUri`.
 3. Ship structured JSON alongside human-readable confirmation text.

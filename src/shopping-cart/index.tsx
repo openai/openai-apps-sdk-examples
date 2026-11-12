@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { useOpenAiGlobal } from "../use-openai-global";
-import { useWidgetState } from "../use-widget-state";
+import { useApp } from "@modelcontextprotocol/ext-apps/react";
+import type { App as McpApp } from "@modelcontextprotocol/ext-apps/react";
 import { AvocadoIcon, BreadIcon, EggIcon, JarIcon, TomatoIcon } from "./icons";
 
 type CartItem = {
@@ -10,15 +10,35 @@ type CartItem = {
   [key: string]: unknown;
 };
 
-type CartWidgetState = {
-  cartId?: string;
-  items?: CartItem[];
-  [key: string]: unknown;
+type CartSnapshot = {
+  cartId: string;
+  items: CartItem[];
 };
 
-const createDefaultCartState = (): CartWidgetState => ({
-  items: [],
-});
+type CartState = Omit<CartSnapshot, "cartId"> & { cartId?: string };
+
+function parseCartSnapshot(value: unknown): CartSnapshot | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const snapshot = value as Partial<CartSnapshot>;
+  if (
+    typeof snapshot.cartId !== "string" ||
+    !Array.isArray(snapshot.items) ||
+    !snapshot.items.every(
+      (item) =>
+        item !== null &&
+        typeof item === "object" &&
+        typeof item.name === "string" &&
+        typeof item.quantity === "number"
+    )
+  ) {
+    return null;
+  }
+
+  return snapshot as CartSnapshot;
+}
 
 function usePrettyJson(value: unknown): string {
   return useMemo(() => {
@@ -82,13 +102,30 @@ const iconMatchers = [
 ];
 
 function App() {
-  const toolOutput = useOpenAiGlobal("toolOutput");
-  const toolResponseMetadata = useOpenAiGlobal("toolResponseMetadata");
-  const widgetState = useOpenAiGlobal("widgetState");
-  const [cartState, setCartState] = useWidgetState<CartWidgetState>(
-    createDefaultCartState
+  const [cartState, setCartState] = useState<CartState>({ items: [] });
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const updateCartFromResult = useCallback(
+    (result: { structuredContent?: unknown }) => {
+      const snapshot = parseCartSnapshot(result.structuredContent);
+      if (snapshot) {
+        setCartState(snapshot);
+      }
+    },
+    []
   );
-  const cartItems = Array.isArray(cartState?.items) ? cartState.items : [];
+  const onAppCreated = useCallback(
+    (app: McpApp) => {
+      app.ontoolresult = updateCartFromResult;
+    },
+    [updateCartFromResult]
+  );
+  const { app } = useApp({
+    appInfo: { name: "shopping-cart", version: "1.0.0" },
+    capabilities: {},
+    onAppCreated,
+  });
+  const cartItems = cartState.items;
   const animationStyles = `
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(10px); }
@@ -96,132 +133,71 @@ function App() {
     }
   `;
 
+  const callCartTool = useCallback(
+    async (name: string, args: Record<string, unknown>) => {
+      if (!app) {
+        setErrorMessage("The cart is not connected to its MCP server yet.");
+        return;
+      }
+
+      setIsUpdating(true);
+      setErrorMessage(null);
+      try {
+        const result = await app.callServerTool({
+          name,
+          arguments: args,
+        });
+        if (result.isError) {
+          const message = result.content
+            .map((item) => (item.type === "text" ? item.text : ""))
+            .filter(Boolean)
+            .join(" ");
+          throw new Error(message || "The cart update failed.");
+        }
+        updateCartFromResult(result);
+      } catch (error) {
+        console.error("[shopping-cart] Cart update failed", error);
+        setErrorMessage("Could not update the cart. Please try again.");
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [app, updateCartFromResult]
+  );
+
   function addItem(name: string) {
-    if (!name) {
+    if (!name || isUpdating) {
       return;
     }
 
-    setCartState((prevState) => {
-      const baseState: CartWidgetState = prevState ?? {};
-      const items = Array.isArray(baseState.items)
-        ? baseState.items.map((item) => ({ ...item }))
-        : [];
-      const idx = items.findIndex((item) => item.name === name);
-
-      if (idx === -1) {
-        items.push({ name, quantity: 1 });
-      } else {
-        const current = items[idx];
-        items[idx] = {
-          ...current,
-          quantity: (current.quantity ?? 0) + 1,
-        };
-      }
-
-      return { ...baseState, items };
+    void callCartTool("add_to_cart", {
+      items: [{ name, quantity: 1 }],
+      ...(cartState.cartId ? { cartId: cartState.cartId } : {}),
     });
   }
 
   function adjustQuantity(name: string, delta: number) {
-    if (!name || delta === 0) {
+    if (!cartState.cartId || !name || delta === 0 || isUpdating) {
       return;
     }
 
-    console.log("adjustQuantity", { name, delta });
-    setCartState((prevState) => {
-      const baseState: CartWidgetState = prevState ?? {};
-      const items = Array.isArray(baseState.items)
-        ? baseState.items.map((item) => ({ ...item }))
-        : [];
-      console.log("adjustQuantity:prev", baseState);
+    const currentItem = cartItems.find((item) => item.name === name);
+    if (!currentItem) {
+      return;
+    }
 
-      const idx = items.findIndex((item) => item.name === name);
-      if (idx === -1) {
-        console.log("adjustQuantity:missing", name);
-        return baseState;
-      }
-
-      const current = items[idx];
-      const nextQuantity = Math.max(0, (current.quantity ?? 0) + delta);
-      if (nextQuantity === 0) {
-        items.splice(idx, 1);
-      } else {
-        items[idx] = { ...current, quantity: nextQuantity };
-      }
-
-      const nextState = { ...baseState, items };
-      console.log("adjustQuantity:next", nextState);
-      return nextState;
+    const nextQuantity = Math.max(0, currentItem.quantity + delta);
+    const items =
+      nextQuantity === 0
+        ? cartItems.filter((item) => item.name !== name)
+        : cartItems.map((item) =>
+            item.name === name ? { ...item, quantity: nextQuantity } : item
+          );
+    void callCartTool("update_cart", {
+      cartId: cartState.cartId,
+      items,
     });
   }
-
-  const lastToolOutputRef = useRef<string>("__tool_output_unset__");
-
-  useEffect(() => {
-    // Merge deltas (toolOutput) into the latest widgetState without
-    // and then update cartState. Runs whenever toolOutput changes.
-    if (toolOutput == null) {
-      return;
-    }
-
-    // changes to cartState triggered from UI will also trigger another global update event,
-    // so we need to check if the tool event has actually changed.
-    const serializedToolOutput = (() => {
-      try {
-        return JSON.stringify({ toolOutput, toolResponseMetadata });
-      } catch (error) {
-        console.warn("Unable to serialize toolOutput", error);
-        return "__tool_output_error__";
-      }
-    })();
-
-    if (serializedToolOutput === lastToolOutputRef.current) {
-      console.log("useEffect skipped (toolOutput is actually unchanged)");
-      return;
-    }
-    lastToolOutputRef.current = serializedToolOutput;
-
-    // Get the items that the user wants to add to the cart from toolOutput
-    const incomingItems = Array.isArray(
-      (toolOutput as { items?: unknown } | null)?.items
-    )
-      ? (toolOutput as { items?: CartItem[] }).items ?? []
-      : [];
-
-    // Since we set `widgetSessionId` on the tool response, when the tool response returns
-    // widgetState should contain the state from the previous turn of conversation
-    // treat widgetState as the definitive local state, and add the new items
-    const baseState = widgetState ?? cartState ?? createDefaultCartState();
-    const baseItems = Array.isArray(baseState.items) ? baseState.items : [];
-    const incomingCartId =
-      typeof (toolOutput as { cartId?: unknown } | null)?.cartId === "string"
-        ? (toolOutput as { cartId?: string }).cartId ?? undefined
-        : undefined;
-
-    const itemsByName = new Map<string, CartItem>();
-    for (const item of baseItems) {
-      if (item?.name) {
-        itemsByName.set(item.name, item);
-      }
-    }
-    // Add in the new items to create newState
-    for (const item of incomingItems) {
-      if (item?.name) {
-        itemsByName.set(item.name, { ...itemsByName.get(item.name), ...item });
-      }
-    }
-
-    const nextItems = Array.from(itemsByName.values());
-    const nextState = {
-      ...baseState,
-      cartId: baseState.cartId ?? incomingCartId,
-      items: nextItems,
-    };
-
-    // Update cartState with the new state that includes the new items
-    // Updating cartState automatically updates window.openai.widgetState.
-    setCartState(nextState as CartWidgetState);
-  }, [toolOutput, toolResponseMetadata]);
 
   function getIconForItem(name: string) {
     const words = name
@@ -347,8 +323,9 @@ function App() {
                   </div>
                   <button
                     type="button"
+                    disabled={isUpdating || !app}
                     onClick={() => addItem(name)}
-                    className="rounded-full bg-amber-200 px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-amber-300"
+                    className="rounded-full bg-amber-200 px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     Add
                   </button>
@@ -366,10 +343,15 @@ function App() {
                 {cartItems.length} items
               </span>
             </header>
+            {errorMessage && (
+              <p role="alert" className="text-sm text-red-700">
+                {errorMessage}
+              </p>
+            )}
             {itemCards}
             <button
               type="button"
-              disabled={cartItems.length === 0}
+              disabled={cartItems.length === 0 || isUpdating}
               className="w-full rounded-2xl border border-black/30 bg-white py-3 text-sm font-semibold text-black/70 transition hover:border-black/50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               Check out
@@ -380,14 +362,13 @@ function App() {
         <section className="space-y-3">
           <header className="flex items-center justify-between">
             <p className="text-sm font-semibold uppercase tracking-widest text-black/70">
-              Widget state & output
+              Server cart state
             </p>
-            <span className="text-xs text-black/60">Debug view</span>
+            <span className="text-xs text-black/60">
+              {app ? "Connected" : "Connecting"}
+            </span>
           </header>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <JsonPanel label="window.openai.widgetState" value={cartState} />
-            <JsonPanel label="window.openai.toolOutput" value={toolOutput} />
-          </div>
+          <JsonPanel label="structuredContent" value={cartState} />
         </section>
       </div>
     </div>

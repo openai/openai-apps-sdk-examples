@@ -22,10 +22,9 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, Field
 
-
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 TEMPLATE_URI = "ui://widget/kitchen-sink-lite.html"
-MIME_TYPE = "text/html+skybridge"
+MIME_TYPE = "text/html;profile=mcp-app"
 
 
 class WidgetPayload(BaseModel):
@@ -58,14 +57,44 @@ def load_widget_html() -> str:
     )
 
 
-def tool_meta(invocation: str):
+def tool_meta():
     return {
-        "openai/outputTemplate": TEMPLATE_URI,
+        "ui": {
+            "resourceUri": TEMPLATE_URI,
+            "visibility": ["model", "app"],
+        },
         "openai/toolInvocation/invoking": "Preparing the kitchen sink widget",
         "openai/toolInvocation/invoked": "Widget rendered",
-        "openai/widgetAccessible": True,
-        "invocation": invocation,
     }
+
+
+SHOW_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "message": {"type": "string"},
+        "accentColor": {"type": "string"},
+        "details": {"type": "string"},
+    },
+    "required": ["message"],
+    "additionalProperties": False,
+}
+REFRESH_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {"message": {"type": "string"}},
+    "required": ["message"],
+    "additionalProperties": False,
+}
+TOOL_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "message": {"type": "string"},
+        "accentColor": {"type": "string"},
+        "details": {"type": ["string", "null"]},
+        "fromTool": {"type": "string"},
+    },
+    "required": ["message", "accentColor", "details", "fromTool"],
+    "additionalProperties": False,
+}
 
 
 def _split_env_list(value: str | None) -> List[str]:
@@ -93,12 +122,49 @@ mcp = FastMCP(
 )
 
 
-@mcp.resource(TEMPLATE_URI, "Kitchen sink lite widget", mime_type=MIME_TYPE)
+@mcp._mcp_server.list_tools()
+async def _list_tools() -> List[types.Tool]:
+    return [
+        types.Tool(
+            name="kitchen-sink-show",
+            title="Render kitchen sink widget",
+            description="Returns the widget template with the provided message.",
+            inputSchema=SHOW_INPUT_SCHEMA,
+            outputSchema=TOOL_OUTPUT_SCHEMA,
+            _meta=tool_meta(),
+            annotations={
+                "destructiveHint": False,
+                "openWorldHint": False,
+                "readOnlyHint": True,
+            },
+        ),
+        types.Tool(
+            name="kitchen-sink-refresh",
+            title="Refresh from widget",
+            description="Lightweight echo tool called from the widget via callTool.",
+            inputSchema=REFRESH_INPUT_SCHEMA,
+            outputSchema=TOOL_OUTPUT_SCHEMA,
+            _meta=tool_meta(),
+            annotations={
+                "destructiveHint": False,
+                "openWorldHint": False,
+                "readOnlyHint": True,
+            },
+        ),
+    ]
+
+
+@mcp.resource(
+    TEMPLATE_URI,
+    name="Kitchen sink lite widget",
+    description="Kitchen sink lite widget markup.",
+    mime_type=MIME_TYPE,
+)
 async def kitchen_sink_template() -> str:
     return load_widget_html()
 
 
-@mcp.tool()
+@mcp.tool(name="kitchen-sink-show")
 async def kitchen_sink_show(
     message: str = Field(..., description="Primary message to render in the widget."),
     accent_color: str = Field(
@@ -125,12 +191,11 @@ async def kitchen_sink_show(
             )
         ],
         structuredContent=payload.model_dump(mode="json"),
-        _meta=tool_meta("kitchen-sink-show"),
         isError=False,
     )
 
 
-@mcp.tool()
+@mcp.tool(name="kitchen-sink-refresh")
 async def kitchen_sink_refresh(
     message: str = Field(..., description="Message to echo back."),
 ) -> types.CallToolResult:
@@ -144,12 +209,11 @@ async def kitchen_sink_refresh(
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=payload.message)],
         structuredContent=payload.model_dump(mode="json"),
-        _meta=tool_meta("kitchen-sink-refresh"),
         isError=False,
     )
 
 
-app = mcp.fastapi
+app = mcp.streamable_http_app()
 
 if __name__ == "__main__":
     import uvicorn

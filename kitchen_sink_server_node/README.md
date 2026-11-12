@@ -7,7 +7,7 @@ It exposes two tools:
 - `kitchen-sink-show`: returns the widget template plus structured content for the initial render.
 - `kitchen-sink-refresh`: lightweight echo tool so the widget can call back via `window.openai.callTool`.
 
-Both tools return `_meta.openai/outputTemplate` pointing to `ui://widget/kitchen-sink-lite.html`.
+Both tools use `_meta.ui.resourceUri` to associate the MCP App UI resource at `ui://widget/kitchen-sink-lite.html`, and declare their structured output schemas.
 
 ## Prereqs
 
@@ -23,4 +23,4 @@ pnpm --filter kitchen-sink-mcp-node start
 pnpm start
 ```
 
-The server listens on `http://localhost:8000/mcp` (SSE) and `POST /mcp/messages` for messages. You can change the port with `PORT=9000 pnpm start`.
+The server uses Streamable HTTP at `http://localhost:8000/mcp`. You can change the port with `PORT=9000 pnpm start`.

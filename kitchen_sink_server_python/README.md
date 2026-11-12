@@ -5,7 +5,7 @@ This server pairs with the `src/kitchen-sink-lite` widget in this repo. It expos
 - `kitchen-sink-show`: returns the widget template and structured content for the initial render.
 - `kitchen-sink-refresh`: a lightweight echo tool you can call from the widget with `window.openai.callTool`.
 
-Both tools include `_meta.openai/outputTemplate` pointing to the same widget HTML so the Apps SDK can hydrate the UI.
+Both tools use `_meta.ui.resourceUri` to associate the same widget resource, served as `text/html;profile=mcp-app`. The MCP tool descriptors also declare their output schemas.
 
 ## Prereqs
 
@@ -21,4 +21,4 @@ pip install -r requirements.txt
 uvicorn kitchen_sink_server_python.main:app --port 8000
 ```
 
-The server uses FastAPI over SSE-compatible streaming HTTP (the `stateless_http=True` flag). Point ChatGPT at `http://localhost:8000/mcp` once it is running.
+The server uses Streamable HTTP (`stateless_http=True`). Connect to `http://localhost:8000/mcp` with the MCP Inspector or follow OpenAI's [connect and test guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).

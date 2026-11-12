@@ -170,12 +170,116 @@ const answerGuidanceMarkdown = readMarkdownFile(
   "answer deck guidance",
 );
 
-// Every tool response includes this so ChatGPT knows which widget to render.
-// `resourceUri` points to the widget HTML registered as an MCP resource.
+// The tool descriptor links each game tool to its registered MCP UI resource.
 const toolUiMeta = {
   ui: {
     resourceUri: TEMPLATE_URI,
   },
+};
+
+const answerCardOutputSchema = z.object({
+  id: z.string(),
+  type: z.literal("answer"),
+  text: z.string(),
+});
+const promptCardOutputSchema = z.object({
+  id: z.string(),
+  type: z.literal("prompt"),
+  text: z.string(),
+});
+const personaOutputSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    personality: z.string(),
+    likes: z.array(z.string()),
+    dislikes: z.array(z.string()),
+    humorStyle: z.array(z.string()),
+    favoriteJokeTypes: z.array(z.string()),
+    catchphrase: z.string().optional(),
+    quirks: z.array(z.string()).optional(),
+    backstory: z.string().optional(),
+    voiceTone: z.string().optional(),
+    competitiveness: z.number().optional(),
+  })
+  .nullable();
+const gameStateOutputSchema = z.object({
+  gameKey: z.string(),
+  prompt: promptCardOutputSchema.nullable(),
+  playedAnswerCards: z.array(
+    z.object({
+      cardId: z.string(),
+      playerId: z.string(),
+      playerComment: z.string().optional(),
+    }),
+  ),
+  players: z.array(
+    z.object({
+      id: z.string(),
+      type: z.enum(["human", "cpu"]),
+      persona: personaOutputSchema,
+      wonPromptCards: z.array(promptCardOutputSchema),
+      answerCards: z.array(z.string()),
+    }),
+  ),
+  status: z.enum([
+    "initializing",
+    "waiting-for-answers",
+    "judging",
+    "game-ended",
+    "display-judgement",
+    "prepare-for-next-round",
+    "announce-winner",
+  ]),
+  winnerId: z.string().nullable(),
+  currentJudgePlayerIndex: z.number().int(),
+  answerCards: z.record(z.string(), answerCardOutputSchema),
+  discardedPromptCards: z.array(promptCardOutputSchema),
+  judgementResult: z
+    .object({
+      judgeId: z.string(),
+      winningCardId: z.string(),
+      winningPlayerId: z.string(),
+      reactionToWinningCard: z.string().optional(),
+    })
+    .nullable(),
+  chatLog: z.array(
+    z.object({
+      playerId: z.string(),
+      playerName: z.string(),
+      message: z.string(),
+    }),
+  ),
+});
+const nextActionOutputSchema = z.object({
+  action: z.string(),
+  description: z.string(),
+  notifyModel: z.boolean(),
+});
+const cpuContextOutputSchema = z.object({
+  prompt: z.object({ text: z.string() }).nullable(),
+  cpuPlayers: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      persona: personaOutputSchema,
+      hand: z.array(z.object({ id: z.string(), text: z.string() })),
+    }),
+  ),
+  playedAnswers: z
+    .array(z.object({ cardId: z.string(), text: z.string() }))
+    .optional(),
+  previousPromptTexts: z.array(z.string()),
+  handTexts: z.array(z.string()),
+  judge: z.object({ id: z.string(), name: z.string() }).nullable(),
+});
+const gameToolOutputSchema = {
+  invocation: z.string(),
+  gameId: z.string(),
+  gameKey: z.string(),
+  gameState: gameStateOutputSchema,
+  nextAction: nextActionOutputSchema.optional(),
+  cpuContext: cpuContextOutputSchema.optional(),
 };
 
 // registerAppTool accepts Zod shapes (not JSON Schema objects).
@@ -265,19 +369,9 @@ const submitPromptShape = {
 // --- Game logic helpers ---
 
 /**
- * Builds a tool response with three data channels:
- *
- * 1. `_meta` — widget session binding. `openai/widgetSessionId` ties all tool
- *    responses to the same widget instance. Without it, each tool call would
- *    spawn a new widget iframe.
- *
- * 2. `content` — text that appears in the ChatGPT conversation. The JSON blob
- *    uses `annotations.audience: ["assistant"]` to hide it from the user —
- *    only the model sees it (game state, nextAction hints, cpuContext).
- *
- * 3. `structuredContent` — typed data channel for the widget. The widget reads
- *    this via `callServerTool` responses and `ontoolresult`. The model does NOT
- *    see structuredContent.
+ * The tool descriptor binds the widget through `ui.resourceUri`. Both `content`
+ * and `structuredContent` are visible to the model; the widget reads
+ * `structuredContent` through `callServerTool` responses and `ontoolresult`.
  */
 function buildGameToolResponse(
   toolName: string,
@@ -290,29 +384,7 @@ function buildGameToolResponse(
     : undefined;
 
   return {
-    _meta: {
-      ...toolUiMeta,
-      // Binds this response to the existing widget instance for this game.
-      "openai/widgetSessionId": record.id,
-    },
-    // Text content visible in the conversation. The assistant-only JSON blob
-    // gives the model game state and next-action hints without cluttering the
-    // user-visible chat.
-    content: [
-      { type: "text" as const, text: textContent || "Done." },
-      {
-        type: "text" as const,
-        text: JSON.stringify({
-          gameId: record.id,
-          gameKey: record.key,
-          gameState: record.instance.getState(),
-          ...(nextAction ? { nextAction } : {}),
-          ...(cpuContext ? { cpuContext } : {}),
-        }),
-        annotations: { audience: ["assistant" as const] },
-      },
-    ],
-    // Widget-only data. The widget reads this; the model doesn't see it.
+    content: [{ type: "text" as const, text: textContent || "Done." }],
     structuredContent: {
       invocation: toolName,
       gameId: record.id,
@@ -326,7 +398,6 @@ function buildGameToolResponse(
 
 function gameNotFoundError(toolName: string) {
   return {
-    _meta: toolUiMeta,
     isError: true as const,
     content: [{ type: "text" as const, text: "Unknown game id" }],
     structuredContent: {
@@ -494,13 +565,13 @@ function createCardsAgainstAiServer(): McpServer {
       description:
         "Creates a new game instance and returns its gameId/gameKey along with the initial gameState. Provide exactly 4 players (1 human + 3 CPU recommended). Each player needs: id, name, type ('human' or 'cpu'), answerCards (7 cards each), and persona (required for CPU, optional for human). Persona supports optional fields for richer characters: catchphrase (signature phrase), quirks (behavioral tics), backstory (1-2 sentences), voiceTone ('sarcastic', 'enthusiastic', etc.), and competitiveness (1-10 scale). Populate these richly for CPU players. The firstPrompt is the first round's prompt card text (must contain ____). The introDialog array contains role-played introductions from each CPU character. The response includes gameState and nextAction — use nextAction to determine what tool to call next. First to 5 wins! Full rules are in rules://cards-against-ai. Answer card guidance in rules://cards-against-ai/answer-deck.",
       inputSchema: startGameShape,
+      outputSchema: gameToolOutputSchema,
       _meta: toolUiMeta,
       annotations: toolAnnotations,
     },
     async (args) => {
       if (!args.firstPrompt.includes("____")) {
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [
             {
@@ -545,6 +616,7 @@ function createCardsAgainstAiServer(): McpServer {
       description:
         "Plays an answer card from the human player's hand. The human will provide gameId, playerId, and cardId via chat. Returns updated gameState and nextAction. CRITICAL: You MUST always check nextAction in the response and call the indicated tool immediately. If nextAction is 'play-cpu-answer-cards', you MUST call play-cpu-answer-cards as your very next tool call or the game will stall.",
       inputSchema: playAnswerCardShape,
+      outputSchema: gameToolOutputSchema,
       _meta: toolUiMeta,
       annotations: toolAnnotations,
     },
@@ -560,7 +632,6 @@ function createCardsAgainstAiServer(): McpServer {
         record.instance.playAnswerCard(args.playerId, args.cardId);
       } catch (error) {
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [
             {
@@ -587,6 +658,7 @@ function createCardsAgainstAiServer(): McpServer {
       description:
         "Records the human judge's winning card choice. The human will provide gameId, playerId, and winningCardId via chat. Returns updated gameState and nextAction.",
       inputSchema: judgeAnswerCardShape,
+      outputSchema: gameToolOutputSchema,
       _meta: toolUiMeta,
       annotations: toolAnnotations,
     },
@@ -604,7 +676,6 @@ function createCardsAgainstAiServer(): McpServer {
       );
       if (!playedCard) {
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [{ type: "text" as const, text: "Winning card not found in played cards." }],
         };
@@ -620,7 +691,6 @@ function createCardsAgainstAiServer(): McpServer {
         });
       } catch (error) {
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [
             {
@@ -647,6 +717,7 @@ function createCardsAgainstAiServer(): McpServer {
       description:
         "When nextAction.action === 'play-cpu-answer-cards', use this tool to submit CPU player card selections. Provide cpuAnswerChoices with playerId, cardId, and optional playerComment for each CPU player. Read CPU persona details and card hands from structuredContent.cpuContext in the previous response. CRITICAL: After receiving the response, if the current judge is a CPU, you MUST call cpu-judge-answer-card IMMEDIATELY as your very next tool call. In your response text, write a brief in-character quip from each CPU player as they play their card (1-2 sentences each, using persona details). Occasionally reference or tease the human player by name. Returns updated gameState and nextAction.",
       inputSchema: playCpuAnswerCardsShape,
+      outputSchema: gameToolOutputSchema,
       _meta: toolUiMeta,
       annotations: toolAnnotations,
     },
@@ -662,7 +733,6 @@ function createCardsAgainstAiServer(): McpServer {
         record.instance.submitCpuAnswers(args.cpuAnswerChoices);
       } catch (error) {
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [
             {
@@ -690,6 +760,7 @@ function createCardsAgainstAiServer(): McpServer {
       description:
         "When nextAction.action === 'cpu-judge-answer-card', you MUST call this tool immediately — the game will stall if you don't. Submit the CPU judge's verdict with winningCardId and optional reactionToWinningCard. Read the played answer cards from structuredContent.cpuContext in the previous response. In your response text, narrate the judge's dramatic reveal and have 1-2 other players react (groans, celebrations, accusations). Reference the human player sometimes — tease their card, congratulate them, etc. Returns updated gameState and nextAction.",
       inputSchema: cpuJudgeAnswerCardShape,
+      outputSchema: gameToolOutputSchema,
       _meta: toolUiMeta,
       annotations: toolAnnotations,
     },
@@ -712,7 +783,6 @@ function createCardsAgainstAiServer(): McpServer {
         });
       } catch (error) {
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [
             {
@@ -749,6 +819,7 @@ function createCardsAgainstAiServer(): McpServer {
       description:
         "When nextAction.action === 'submit-prompt', provide a new prompt card and replacement answer cards. Only callable when the game is in display-judgement or prepare-for-next-round status — calling at other times will return an error with the correct nextAction. The promptText must include exactly one blank (____). The replacementCards array should include one new answer card for each player who played last round (not the judge). In your response text, include brief between-round banter from 1-2 CPU players. Address the human player occasionally. Returns updated gameState and nextAction.",
       inputSchema: submitPromptShape,
+      outputSchema: gameToolOutputSchema,
       _meta: toolUiMeta,
       annotations: toolAnnotations,
     },
@@ -762,7 +833,6 @@ function createCardsAgainstAiServer(): McpServer {
 
       if (!args.promptText.includes("____")) {
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [
             {
@@ -780,7 +850,6 @@ function createCardsAgainstAiServer(): McpServer {
       } catch (error) {
         const nextAction = record.instance.computeNextAction();
         const result = {
-          _meta: toolUiMeta,
           isError: true as const,
           content: [
             {
