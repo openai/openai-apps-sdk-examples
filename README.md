@@ -19,13 +19,13 @@ How to disable it:
 
 The Model Context Protocol (MCP) is an open specification for connecting large language model clients to external tools, data, and user interfaces. An MCP server exposes tools that a model can call during a conversation and returns results according to the tool contracts. Those results can include extra metadata—such as inline HTML—that the Apps SDK uses to render rich UI components (widgets) alongside assistant messages.
 
-Within the Apps SDK, MCP keeps the server, model, and UI in sync. By standardizing the wire format, authentication, and metadata, it lets ChatGPT reason about your connector the same way it reasons about built-in tools. A minimal MCP integration for Apps SDK implements three capabilities:
+Within the Apps SDK, MCP keeps the server, model, and UI in sync. By standardizing the wire format, authentication, and metadata, it lets ChatGPT reason about your connector the same way it reasons about built-in tools. The server examples use MCP Apps resource metadata; `mcp_app_basics_node/` and the shopping-cart widget demonstrate the shared bridge, while some existing widgets intentionally retain ChatGPT-specific `window.openai` compatibility APIs. A minimal MCP integration implements three capabilities:
 
 1. **List tools** – Your server advertises the tools it supports, including their JSON Schema input/output contracts and optional annotations (for example, `readOnlyHint`).
 2. **Call tools** – When a model selects a tool, it issues a `call_tool` request with arguments that match the user intent. Your server executes the action and returns structured content the model can parse.
-3. **Return widgets** – Alongside structured content, return embedded resources in the response metadata so the Apps SDK can render the interface inline in the Apps SDK client (ChatGPT).
+3. **Return widgets** – Register HTML as an MCP resource and associate it with a tool using `_meta.ui.resourceUri`; serve it with the `text/html;profile=mcp-app` MIME type.
 
-Because the protocol is transport agnostic, you can host the server over Server-Sent Events or streaming HTTP—Apps SDK supports both.
+For new OpenAI apps, use Streamable HTTP and expose the MCP endpoint at `/mcp`. See the [official MCP server guide](https://developers.openai.com/plugins/build/mcp-server.md) for current transport and widget metadata requirements.
 
 The MCP servers in this demo highlight how each tool can light up widgets by combining structured payloads with `_meta.ui.resourceUri` metadata returned from the MCP servers.
 
@@ -33,7 +33,7 @@ The MCP servers in this demo highlight how each tool can light up widgets by com
 
 - `src/` – Source for each widget example.
 - `assets/` – Generated HTML, JS, and CSS bundles after running the build step.
-- `shopping_cart_python/` – Python MCP server that demonstrates how `_meta["widgetSessionId"]` keeps `widgetState` in sync across turns for a shopping-cart widget.
+- `shopping_cart_python/` – Python MCP server that keeps cart business state on the server and lets the widget update it through MCP tools.
 - `pizzaz_server_node/` – MCP server implemented with the official TypeScript SDK.
 - `pizzaz_server_python/` – Python MCP server that returns the Pizzaz widgets.
 - `solar-system_server_python/` – Python MCP server for the 3D solar system widget.
@@ -44,20 +44,21 @@ The MCP servers in this demo highlight how each tool can light up widgets by com
 
 ### Pizzaz overview
 
-This example contains multiple components showing multiple types of views and interactions: a list view, a carousel view, a map view. It also contains a "pizzaz shop" showing interactive flows and a checkout page.
+This example contains multiple components showing multiple types of views and interactions: a list view, a carousel view, a map view. It also contains a UI-only "pizzaz shop" mockup with interactive flows and a checkout page; its widget state is not a server-authoritative cart.
 
 This example uses the [Apps SDK UI library](https://github.com/openai/apps-sdk-ui) for simple components such as images, buttons, and badges.
+The Pizzaz shop also demonstrates ChatGPT-specific `window.openai.widgetState`; use `mcp_app_basics_node/` for the portable MCP Apps bridge.
 
 ### Kitchen sink lite overview
 
-The kitchen sink lite sample shows the full `window.openai` surface working together:
+The kitchen sink lite sample demonstrates ChatGPT-specific `window.openai` extensions:
 
 - Reads host state (`toolInput`, `toolOutput`, `displayMode`, `theme`, `widgetState`).
 - Writes host state with `setWidgetState`.
 - Calls another MCP tool from the widget with `callTool`.
 - Uses host helpers like `requestDisplayMode`, `openExternal`, and `sendFollowUpMessage`.
 
-Use it as a reference for how to wire UI to MCP tool responses and host APIs with the Apps SDK UI components.
+Use `mcp_app_basics_node/` for the portable MCP Apps bridge APIs; use this sample when you specifically need ChatGPT's optional `window.openai` host extensions.
 
 ## Prerequisites
 
@@ -111,9 +112,9 @@ The repository ships several demo MCP servers that highlight different widget bu
 
 - **Pizzaz (Node & Python)** – pizza-inspired collection of tools and components
 - **Solar system (Python)** – 3D solar system viewer
-- **Authenticated (Python)** – set of tools that require different levels of OAuth
+- **Authenticated (Python)** – OAuth challenge/discovery example; its README warns that it checks token presence only and is not production authorization
 - **Kitchen sink lite (Node & Python)** – minimal widget + server pairing that demonstrates tool output, widget state, `callTool`, and host helpers
-- **Shopping cart (Python)** – simple shopping cart widget that demonstrates how to use `widgetSessionId` to keep state between tool calls
+- **Shopping cart (Python)** – a server-authoritative shopping cart with an app-only MCP tool for UI quantity changes
 
 ### Pizzaz Node server
 
@@ -166,7 +167,7 @@ uvicorn kitchen_sink_server_python.main:app --port 8000
 
 ### Shopping cart Python server
 
-Use this example to learn how `_meta["widgetSessionId"]` can carry `widgetState` between tool calls so the model and widget share the same shopping cart. The widget merges tool responses with prior `widgetState`, and UI actions (like incrementing quantities) feed back into that shared state so the assistant always sees the latest cart.
+This example keeps the cart on the MCP server, returns its current snapshot in `structuredContent`, and uses an app-only tool for widget-driven quantity changes. The demo store is in memory; use a persistent, user-authorized store for production.
 
 ```bash
 python -m venv .venv
@@ -176,7 +177,7 @@ uvicorn shopping_cart_python.main:app --port 8000
 ```
 
 > [!NOTE]
-> In production you should persist the cart server-side (see [shopping_cart_python/README.md](shopping_cart_python/README.md)), but this demo shows the mechanics of keeping state through `widgetSessionId`.
+> This demo uses a process-local in-memory store, so its state is lost on restart and is not shared across server instances. See [shopping_cart_python/README.md](shopping_cart_python/README.md) before adapting it for production.
 
 ---
 
@@ -184,7 +185,7 @@ You can reuse the same virtual environment for all Python servers—install the 
 
 ## Testing in ChatGPT
 
-To add these apps to ChatGPT, enable [developer mode](https://platform.openai.com/docs/guides/developer-mode), and add your apps in Settings > Connectors.
+To connect an app to ChatGPT, follow the current [OpenAI connect and test guide](https://developers.openai.com/plugins/deploy/connect-chatgpt). Use the MCP Inspector to validate tools and resources independently of ChatGPT.
 
 To add your local server without deploying it, you can use a tool like [ngrok](https://ngrok.com/) to expose your local server to the internet.
 
@@ -194,9 +195,7 @@ For example, once your mcp servers are running, you can run:
 ngrok http 8000
 ```
 
-You will get a public URL that you can use to add your local server to ChatGPT in Settings > Connectors.
-
-For example: `https://<custom_endpoint>.ngrok-free.app/mcp`
+You will get a public URL that you can use to connect your local server in ChatGPT. The MCP endpoint is `https://<custom_endpoint>.ngrok-free.app/mcp`.
 
 > [!IMPORTANT]
 > The Python MCP SDK enforces DNS rebinding protection. When tunneling (for example via ngrok), allow your tunnel host before starting any Python server:

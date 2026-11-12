@@ -313,8 +313,8 @@ export class GameInstance extends EventEmitter {
    * Builds the data package sent to the model when it needs to make CPU
    * decisions. Includes CPU player hands, the current prompt, already-played
    * cards, and judge info — everything the model needs to play in-character.
-   * This is included in `structuredContent` and `content` (assistant-only)
-   * when `nextAction.notifyModel` is true.
+   * This is included in `structuredContent` when `nextAction.notifyModel` is
+   * true. Structured content is available to both the model and the widget.
    */
   getCpuContext() {
     const judge = this.state.players[this.state.currentJudgePlayerIndex] ?? null;

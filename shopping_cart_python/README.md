@@ -1,6 +1,8 @@
 # Shopping cart MCP server (Python)
 
-This example shows how to thread state across conversation turns by pairing `_meta["widgetSessionId"]` with `window.openai.widgetState`. The Python server ships a simple `add_to_cart` tool as an example, plus a widget that stays in sync even when the user adjusts quantities in the UI between turns.
+This example keeps cart business state on the MCP server instead of storing it
+in widget state. The widget receives the current snapshot through
+`structuredContent` and uses an app-only MCP tool to save quantity changes.
 
 ## Installation
 
@@ -14,13 +16,14 @@ pip install -r shopping_cart_python/requirements.txt
 
 ## Run the server
 
-In one shell, serve the static assets from the repo root:
+In one shell, build and serve the static assets from the repository root:
 
 ```bash
+pnpm run build
 pnpm run serve
 ```
 
-In another shell, start the shopping-cart MCP server (from the repo root):
+In another shell, start the shopping-cart server:
 
 ```bash
 python shopping_cart_python/main.py
@@ -28,34 +31,33 @@ python shopping_cart_python/main.py
 python -m uvicorn shopping_cart_python.main:app --host 0.0.0.0 --port 8000
 ```
 
-The server exposes `GET /mcp` for SSE and `POST /mcp/messages?sessionId=...` for follow-up messages, mirroring the other FastMCP examples.
+The MCP endpoint uses Streamable HTTP at `http://127.0.0.1:8000/mcp`. Connect
+with the MCP Inspector or follow OpenAI's
+[connect and test guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 
 ## How the state flow works
 
-- Every `call_tool` response sets `_meta["widgetSessionId"]` to the cart identifier and returns a `structuredContent` payload containing the new cart items.
-- The widget reads `window.openai.widgetState`, merges in the latest `toolOutput.items`, and writes the combined snapshot back to `window.openai.widgetState`. UI interactions (increment/decrement) also update that shared state so the next turn sees the changes.
-- Because the host keeps `widgetState` keyed by `widgetSessionId`, subsequent tool calls for the same session automatically receive the prior cart state, letting the model and UI stay aligned without extra plumbing.
+- `add_to_cart` adds items to the server's cart and returns the complete cart
+  snapshot (`cartId` and `items`) in `structuredContent`.
+- The widget calls the app-only `update_cart` tool when a user increments,
+  decrements, or removes an item. The server replaces its cart contents and
+  returns the updated snapshot.
+- The server does not set `openai/widgetSessionId`. That value is host-provided;
+  it is not an application-defined cart identifier.
+- MCP `structuredContent` is available to both the model and the widget. Do not
+  use it as a place for secrets or data that should be hidden from the model.
 
-## Recommended production pattern
+## Production considerations
 
-This demo leans on `window.openai.widgetState` to illustrate the mechanics. In production, keep the cart in your MCP server (or a backing datastore) instead of relying on client-side state:
-
-- On each `add_to_cart` (or similar) tool call, load the cart from your datastore using the session/cart ID, apply the incoming items, persist the new snapshot, and return it along with `_meta["widgetSessionId"]`.
-- From the widget, treat the datastore as the source of truth: every UX interaction (like incrementing quantities) should invoke your backend—either via another MCP tool call or a direct HTTP request—to mutate and re-read the cart.
-- Continue setting `_meta["widgetSessionId"]` so the host and widget stay locked to the same cart across turns, while the datastore ensures durability and multi-device correctness.
-
-A lightweight in-memory store works for local testing; swap in a persistent datastore when you move beyond the demo.
+This demo stores carts in a process-local dictionary. The data disappears when
+the process restarts and is not shared across multiple server instances.
+Production implementations should authenticate callers, authorize access to
+each cart, and persist the cart in a user-scoped datastore. The server-side
+store—not `widgetState`—should remain the source of truth for cart contents.
 
 ## Example demo flow
 
-- Ask "Add 2 eggs to my cart" => you will be prompted to add the eggs to the cart, and this will be the initial cart state
-- Say "Now add milk" => the milk will be added to the existing cart
-- Add 2 avocados from the UI => the widget state will change
-- Say "Now add 3 tomatoes" => the tomatoes will be added to the existing cart
-
-You should have the following cart state:
-
-- N eggs
-- 1 milk
-- 2 avocados
-- 3 tomatoes
+- Ask "Add 2 eggs to my cart" to create the cart and add eggs.
+- Say "Now add milk" to add milk to that cart.
+- Use the widget's `+` and `-` controls to update quantities; each change is
+  sent to the server and reflected in the returned cart snapshot.

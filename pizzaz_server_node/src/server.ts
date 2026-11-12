@@ -8,7 +8,7 @@ import path from "node:path";
 import { URL, fileURLToPath } from "node:url";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   ListResourceTemplatesRequestSchema,
@@ -39,6 +39,7 @@ type PizzazWidget = {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "..", "..");
 const ASSETS_DIR = path.resolve(ROOT_DIR, "assets");
+const MIME_TYPE = "text/html;profile=mcp-app";
 
 function readWidgetHtml(componentName: string): string {
   if (!fs.existsSync(ASSETS_DIR)) {
@@ -76,15 +77,10 @@ function readWidgetHtml(componentName: string): string {
 
 function widgetDescriptorMeta(widget: PizzazWidget) {
   return {
-    "openai/outputTemplate": widget.templateUri,
-    "openai/toolInvocation/invoking": widget.invoking,
-    "openai/toolInvocation/invoked": widget.invoked,
-    "openai/widgetAccessible": true,
-  } as const;
-}
-
-function widgetInvocationMeta(widget: PizzazWidget) {
-  return {
+    ui: {
+      resourceUri: widget.templateUri,
+      visibility: ["model", "app"],
+    },
     "openai/toolInvocation/invoking": widget.invoking,
     "openai/toolInvocation/invoked": widget.invoked,
   } as const;
@@ -146,7 +142,7 @@ widgets.forEach((widget) => {
   widgetsByUri.set(widget.templateUri, widget);
 });
 
-const toolInputSchema = {
+const toolInputSchema: Tool["inputSchema"] = {
   type: "object",
   properties: {
     pizzaTopping: {
@@ -156,16 +152,26 @@ const toolInputSchema = {
   },
   required: ["pizzaTopping"],
   additionalProperties: false,
-} as const;
+};
 
 const toolInputParser = z.object({
   pizzaTopping: z.string(),
 });
 
+const toolOutputSchema: NonNullable<Tool["outputSchema"]> = {
+  type: "object",
+  properties: {
+    pizzaTopping: { type: "string" },
+  },
+  required: ["pizzaTopping"],
+  additionalProperties: false,
+};
+
 const tools: Tool[] = widgets.map((widget) => ({
   name: widget.id,
   description: widget.title,
   inputSchema: toolInputSchema,
+  outputSchema: toolOutputSchema,
   title: widget.title,
   _meta: widgetDescriptorMeta(widget),
   // To disable the approval prompt for the widgets
@@ -180,16 +186,14 @@ const resources: Resource[] = widgets.map((widget) => ({
   uri: widget.templateUri,
   name: widget.title,
   description: `${widget.title} widget markup`,
-  mimeType: "text/html+skybridge",
-  _meta: widgetDescriptorMeta(widget),
+  mimeType: MIME_TYPE,
 }));
 
 const resourceTemplates: ResourceTemplate[] = widgets.map((widget) => ({
   uriTemplate: widget.templateUri,
   name: widget.title,
   description: `${widget.title} widget markup`,
-  mimeType: "text/html+skybridge",
-  _meta: widgetDescriptorMeta(widget),
+  mimeType: MIME_TYPE,
 }));
 
 function createPizzazServer(): Server {
@@ -226,9 +230,8 @@ function createPizzazServer(): Server {
         contents: [
           {
             uri: widget.templateUri,
-            mimeType: "text/html+skybridge",
+            mimeType: MIME_TYPE,
             text: widget.html,
-            _meta: widgetDescriptorMeta(widget),
           },
         ],
       };
@@ -270,81 +273,11 @@ function createPizzazServer(): Server {
         structuredContent: {
           pizzaTopping: args.pizzaTopping,
         },
-        _meta: widgetInvocationMeta(widget),
       };
     }
   );
 
   return server;
-}
-
-type SessionRecord = {
-  server: Server;
-  transport: SSEServerTransport;
-};
-
-const sessions = new Map<string, SessionRecord>();
-
-const ssePath = "/mcp";
-const postPath = "/mcp/messages";
-
-async function handleSseRequest(res: ServerResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  const server = createPizzazServer();
-  const transport = new SSEServerTransport(postPath, res);
-  const sessionId = transport.sessionId;
-
-  sessions.set(sessionId, { server, transport });
-
-  transport.onclose = async () => {
-    sessions.delete(sessionId);
-    await server.close();
-  };
-
-  transport.onerror = (error) => {
-    console.error("SSE transport error", error);
-  };
-
-  try {
-    await server.connect(transport);
-  } catch (error) {
-    sessions.delete(sessionId);
-    console.error("Failed to start SSE session", error);
-    if (!res.headersSent) {
-      res.writeHead(500).end("Failed to establish SSE connection");
-    }
-  }
-}
-
-async function handlePostMessage(
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL
-) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "content-type");
-  const sessionId = url.searchParams.get("sessionId");
-
-  if (!sessionId) {
-    res.writeHead(400).end("Missing sessionId query parameter");
-    return;
-  }
-
-  const session = sessions.get(sessionId);
-
-  if (!session) {
-    res.writeHead(404).end("Unknown session");
-    return;
-  }
-
-  try {
-    await session.transport.handlePostMessage(req, res);
-  } catch (error) {
-    console.error("Failed to process message", error);
-    if (!res.headersSent) {
-      res.writeHead(500).end("Failed to process message");
-    }
-  }
 }
 
 const portEnv = Number(process.env.PORT ?? 8000);
@@ -359,26 +292,51 @@ const httpServer = createServer(
 
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
 
-    if (
-      req.method === "OPTIONS" &&
-      (url.pathname === ssePath || url.pathname === postPath)
-    ) {
+    if (req.method === "OPTIONS" && url.pathname === "/mcp") {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers":
+          "content-type, mcp-session-id, mcp-protocol-version",
+        "Access-Control-Expose-Headers": "Mcp-Session-Id",
       });
       res.end();
       return;
     }
 
-    if (req.method === "GET" && url.pathname === ssePath) {
-      await handleSseRequest(res);
+    if (
+      url.pathname === "/mcp" &&
+      req.method &&
+      new Set(["GET", "POST", "DELETE"]).has(req.method)
+    ) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+
+      const server = createPizzazServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      });
+
+      res.on("close", () => {
+        void transport.close();
+        void server.close();
+      });
+
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        console.error("Error handling MCP request:", error);
+        if (!res.headersSent) {
+          res.writeHead(500).end("Internal server error");
+        }
+      }
       return;
     }
 
-    if (req.method === "POST" && url.pathname === postPath) {
-      await handlePostMessage(req, res, url);
+    if (req.method === "GET" && url.pathname === "/") {
+      res.writeHead(200, { "content-type": "text/plain" }).end("Pizzaz MCP server");
       return;
     }
 
@@ -392,9 +350,7 @@ httpServer.on("clientError", (err: Error, socket) => {
 });
 
 httpServer.listen(port, () => {
-  console.log(`Pizzaz MCP server listening on http://localhost:${port}`);
-  console.log(`  SSE stream: GET http://localhost:${port}${ssePath}`);
   console.log(
-    `  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`
+    `Pizzaz MCP server listening at http://localhost:${port}/mcp (Streamable HTTP)`
   );
 });

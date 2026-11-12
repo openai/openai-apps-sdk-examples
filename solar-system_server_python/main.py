@@ -13,7 +13,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-MIME_TYPE = "text/html+skybridge"
+MIME_TYPE = "text/html;profile=mcp-app"
 PLANETS = [
     "Mercury",
     "Venus",
@@ -132,6 +132,16 @@ mcp = FastMCP(
 )
 
 TOOL_INPUT_SCHEMA: Dict[str, Any] = SolarInput.model_json_schema()
+TOOL_OUTPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "planet_name": {"type": "string"},
+        "planet_description": {"type": "string"},
+        "autoOrbit": {"type": "boolean"},
+    },
+    "required": ["planet_name", "planet_description", "autoOrbit"],
+    "additionalProperties": False,
+}
 
 
 def _resource_description(widget: SolarWidget) -> str:
@@ -140,28 +150,13 @@ def _resource_description(widget: SolarWidget) -> str:
 
 def _tool_meta(widget: SolarWidget) -> Dict[str, Any]:
     return {
-        "openai/outputTemplate": widget.template_uri,
+        "ui": {
+            "resourceUri": widget.template_uri,
+            "visibility": ["model", "app"],
+        },
         "openai/toolInvocation/invoking": widget.invoking,
         "openai/toolInvocation/invoked": widget.invoked,
-        "openai/widgetAccessible": True,
-        "annotations": {
-            "destructiveHint": False,
-            "openWorldHint": False,
-            "readOnlyHint": True,
-        },
     }
-
-
-def _embedded_widget_resource(widget: SolarWidget) -> types.EmbeddedResource:
-    return types.EmbeddedResource(
-        type="resource",
-        resource=types.TextResourceContents(
-            uri=widget.template_uri,
-            mimeType=MIME_TYPE,
-            text=widget.html,
-            title=widget.title,
-        ),
-    )
 
 
 def _normalize_planet(name: str) -> str | None:
@@ -199,7 +194,13 @@ async def _list_tools() -> List[types.Tool]:
             title=WIDGET.title,
             description="Render the solar system widget centered on the requested planet.",
             inputSchema=TOOL_INPUT_SCHEMA,
+            outputSchema=TOOL_OUTPUT_SCHEMA,
             _meta=_tool_meta(WIDGET),
+            annotations={
+                "destructiveHint": False,
+                "openWorldHint": False,
+                "readOnlyHint": True,
+            },
         )
     ]
 
@@ -213,7 +214,6 @@ async def _list_resources() -> List[types.Resource]:
             uri=WIDGET.template_uri,
             description=_resource_description(WIDGET),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(WIDGET),
         )
     ]
 
@@ -227,7 +227,6 @@ async def _list_resource_templates() -> List[types.ResourceTemplate]:
             uriTemplate=WIDGET.template_uri,
             description=_resource_description(WIDGET),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(WIDGET),
         )
     ]
 
@@ -248,7 +247,6 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
             uri=WIDGET.template_uri,
             mimeType=MIME_TYPE,
             text=WIDGET.html,
-            _meta=_tool_meta(WIDGET),
         )
     ]
 
@@ -286,15 +284,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
             )
         )
 
-    widget_resource = _embedded_widget_resource(WIDGET)
-    meta: Dict[str, Any] = {
-        "openai.com/widget": widget_resource.model_dump(mode="json"),
-        "openai/outputTemplate": WIDGET.template_uri,
-        "openai/toolInvocation/invoking": WIDGET.invoking,
-        "openai/toolInvocation/invoked": WIDGET.invoked,
-        "openai/widgetAccessible": True,
-    }
-
     description = PLANET_DESCRIPTIONS.get(planet, "")
     structured = {
         "planet_name": planet,
@@ -312,7 +301,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                 )
             ],
             structuredContent=structured,
-            _meta=meta,
         )
     )
 

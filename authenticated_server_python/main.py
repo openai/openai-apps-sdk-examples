@@ -11,10 +11,10 @@ from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 import mcp.types as types
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.shared.auth import ProtectedResourceMetadata
-from dotenv import load_dotenv
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -73,7 +73,7 @@ PAST_ORDERS_WIDGET = PizzazWidget(
 )
 
 
-MIME_TYPE = "text/html+skybridge"
+MIME_TYPE = "text/html;profile=mcp-app"
 
 SEARCH_TOOL_NAME = SEARCH_WIDGET.identifier
 PAST_ORDERS_TOOL_NAME = "see_past_orders"
@@ -88,6 +88,44 @@ SEARCH_TOOL_SCHEMA: Dict[str, Any] = {
         },
     },
     "required": [],
+    "additionalProperties": False,
+}
+SEARCH_TOOL_OUTPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {"pizzaTopping": {"type": "string"}},
+    "required": ["pizzaTopping"],
+    "additionalProperties": False,
+}
+PAST_ORDERS_TOOL_OUTPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "orders": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "orderId": {"type": "string"},
+                    "restaurantName": {"type": "string"},
+                    "items": {"type": "array", "items": {"type": "string"}},
+                    "status": {"type": "string"},
+                    "total": {"type": "string"},
+                    "placedAt": {"type": "string"},
+                    "location": {"type": "string"},
+                },
+                "required": [
+                    "orderId",
+                    "restaurantName",
+                    "items",
+                    "status",
+                    "total",
+                    "placedAt",
+                    "location",
+                ],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["orders"],
     "additionalProperties": False,
 }
 
@@ -229,7 +267,7 @@ def _build_www_authenticate_value(error: str, description: str) -> str:
     safe_error = error.replace('"', r"\"")
     safe_description = description.replace('"', r"\"")
     parts = [
-        f'error="{safe_error}"error_description="{safe_description}"',
+        f'error="{safe_error}", error_description="{safe_description}"',
     ]
     parts.append(f'resource_metadata="{PROTECTED_RESOURCE_METADATA_URL}"')
     return f"Bearer {', '.join(parts)}"
@@ -261,6 +299,7 @@ def _oauth_error_result(
 
 
 def _get_bearer_token_from_request() -> str | None:
+    """Extract a bearer token for the demo challenge flow; this does not verify it."""
     try:
         request_context = mcp._mcp_server.request_context
     except LookupError:
@@ -335,22 +374,16 @@ def _tool_meta(
     security_schemes: List[Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     meta = {
-        "openai/outputTemplate": widget.template_uri,
+        "ui": {
+            "resourceUri": widget.template_uri,
+            "visibility": ["model", "app"],
+        },
         "openai/toolInvocation/invoking": widget.invoking,
         "openai/toolInvocation/invoked": widget.invoked,
-        "openai/widgetAccessible": True,
     }
     if security_schemes is not None:
         meta["securitySchemes"] = deepcopy(security_schemes)
     return meta
-
-
-def _tool_invocation_meta(widget: PizzazWidget) -> Dict[str, Any]:
-    return {
-        "openai/toolInvocation/invoking": widget.invoking,
-        "openai/toolInvocation/invoked": widget.invoked,
-        "openai/widgetSessionId": "ren-test-session-id",
-    }
 
 
 def _tool_error(message: str) -> types.ServerResult:
@@ -374,6 +407,7 @@ async def _list_tools() -> List[types.Tool]:
                 "Search for pizza shops in San Francisco (optionally filter by toppings)."
             ),
             inputSchema=SEARCH_TOOL_SCHEMA,
+            outputSchema=SEARCH_TOOL_OUTPUT_SCHEMA,
             _meta=tool_meta,
             securitySchemes=list(MIXED_TOOL_SECURITY_SCHEMES),
             # To disable the approval prompt for the tools
@@ -388,6 +422,7 @@ async def _list_tools() -> List[types.Tool]:
             title="See past orders",
             description="Return a list of past pizza orders (OAuth required).",
             inputSchema=PAST_ORDERS_TOOL_SCHEMA,
+            outputSchema=PAST_ORDERS_TOOL_OUTPUT_SCHEMA,
             _meta=past_orders_meta,
             securitySchemes=list(OAUTH_ONLY_SECURITY_SCHEMES),
             annotations={
@@ -408,7 +443,6 @@ async def _list_resources() -> List[types.Resource]:
             uri=SEARCH_WIDGET.template_uri,
             description=_resource_description(SEARCH_WIDGET),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(SEARCH_WIDGET),
         ),
         types.Resource(
             name=PAST_ORDERS_WIDGET.title,
@@ -416,7 +450,6 @@ async def _list_resources() -> List[types.Resource]:
             uri=PAST_ORDERS_WIDGET.template_uri,
             description=_resource_description(PAST_ORDERS_WIDGET),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(PAST_ORDERS_WIDGET),
         ),
     ]
 
@@ -430,7 +463,6 @@ async def _list_resource_templates() -> List[types.ResourceTemplate]:
             uriTemplate=SEARCH_WIDGET.template_uri,
             description=_resource_description(SEARCH_WIDGET),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(SEARCH_WIDGET),
         ),
         types.ResourceTemplate(
             name=PAST_ORDERS_WIDGET.title,
@@ -438,7 +470,6 @@ async def _list_resource_templates() -> List[types.ResourceTemplate]:
             uriTemplate=PAST_ORDERS_WIDGET.template_uri,
             description=_resource_description(PAST_ORDERS_WIDGET),
             mimeType=MIME_TYPE,
-            _meta=_tool_meta(PAST_ORDERS_WIDGET),
         ),
     ]
 
@@ -467,7 +498,6 @@ async def _handle_read_resource(req: types.ReadResourceRequest) -> types.ServerR
             uri=widget.template_uri,
             mimeType=MIME_TYPE,
             text=widget.html,
-            _meta=_tool_meta(widget),
         )
     ]
 
@@ -480,7 +510,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
     arguments = req.params.arguments or {}
 
     if tool_name == SEARCH_TOOL_NAME:
-        meta = _tool_invocation_meta(SEARCH_WIDGET)
         topping = str(arguments.get("searchTerm", "")).strip()
         return types.ServerResult(
             types.CallToolResult(
@@ -491,7 +520,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                     )
                 ],
                 structuredContent={"pizzaTopping": topping},
-                _meta=meta,
             )
         )
 
@@ -502,7 +530,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                 description="No access token was provided",
             )
 
-        meta = _tool_invocation_meta(PAST_ORDERS_WIDGET)
         limit = arguments.get("limit")
         try:
             parsed_limit = int(limit) if limit is not None else len(PAST_ORDERS_DATA)
@@ -519,7 +546,6 @@ async def _call_tool_request(req: types.CallToolRequest) -> types.ServerResult:
                     )
                 ],
                 structuredContent={"orders": orders},
-                _meta=meta,
             )
         )
 

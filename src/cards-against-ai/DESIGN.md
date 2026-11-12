@@ -12,9 +12,7 @@ Hybrid approach — two mechanisms for widget→server communication, plus SSE f
 2. **`sendFollowUp`** — helper that prefers `window.openai.sendFollowUpMessage` (scrolls to bottom) with fallback to `app.sendMessage`. Routes through the model. Triggered when `nextAction.notifyModel` is `true` (e.g. after play-answer-card when CPU needs to act). Also used for `submit-prompt` (next round button) and the watchdog timer.
 3. **SSE** (`/mcp/game/:gameId/state-stream`) — server pushes full `gameState` on every state change. Single `EventSource` per game, opened when `gameId` is known.
 
-`ontoolresult` is kept solely for bootstrapping: it delivers the initial `gameId` from `start-game`, which opens the SSE connection.
-
-All tool responses include `_meta["openai/widgetSessionId"]` = gameId.
+`ontoolresult` is kept solely for bootstrapping: it delivers the initial `gameId` from `start-game`, which opens the SSE connection. Game state stays on the server and is returned in `structuredContent`; the server does not assign `openai/widgetSessionId` because the host provides that value.
 
 ## Game Loop
 

@@ -10,9 +10,16 @@ The Apps SDK [auth guide](https://developers.openai.com/apps-sdk/build/auth#trig
 The server exposes two tools:
 
 1. `search_pizza_sf` (mixed auth, returns the `mixed-auth-search` widget)
-2. `see_past_orders` (OAuth required, returns the `mixed-auth-past-orders` widget with past orders data)
+2. `see_past_orders` (advertised as OAuth-protected, returns the `mixed-auth-past-orders` widget with demo past orders)
 
-If a request is missing a token for the protected tool, the server returns an `mcp/www_authenticate` hint (backed by `WWW-Authenticate`) plus `/.well-known/oauth-protected-resource` metadata so ChatGPT knows which authorization server to use. With a valid token, the tools return widget markup or structured results.
+If a request is missing a token for the protected tool, the server returns an `mcp/www_authenticate` hint (backed by `WWW-Authenticate`) plus `/.well-known/oauth-protected-resource` metadata so ChatGPT knows which authorization server to use. When a token is present, the demo returns widget markup or structured results without validating the token.
+
+> [!WARNING]
+> This sample demonstrates the OAuth challenge flow only. It checks whether a
+> bearer token is present, but does **not** validate the token signature,
+> issuer, audience, expiration, or scopes. A token's presence is not proof of
+> authorization. Do not use this sample to protect real user or order data;
+> production handlers must validate tokens and enforce authorization.
 
 ## Set up
 
@@ -92,8 +99,8 @@ ngrok http 8000
 
 Copy the `https://...ngrok-free.app` URL and set `RESOURCE_SERVER_URL` in `.env` to `https://...ngrok-free.app/mcp`
 
-The server listens on `http://127.0.0.1:8000` and exposes the standard MCP endpoint at `GET /mcp`.
+The server listens on `http://127.0.0.1:8000` and exposes Streamable HTTP at `/mcp`.
 
-The `search_pizza_sf` tool echoes the optional `searchTerm` argument as a topping and returns structured content plus widget markup. Unauthenticated calls return the MCP auth hint so the Apps SDK can start the OAuth flow.
+The `search_pizza_sf` tool echoes the optional `searchTerm` argument as a topping and returns structured content plus the associated MCP App resource. Calls without a bearer token to `see_past_orders` return the MCP auth hint so the Apps SDK can start the OAuth flow.
 
 The `see_past_orders` tool requires OAuth and returns the `mixed-auth-past-orders` widget with past orders data.

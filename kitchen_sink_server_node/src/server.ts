@@ -5,7 +5,7 @@
  * - kitchen-sink-show: renders the widget with structured content, adding a processedAt/echoed demo.
  * - kitchen-sink-refresh: lightweight echo tool called from the widget via callTool.
  *
- * Uses @modelcontextprotocol/sdk over SSE transport. Make sure assets are built
+ * Uses @modelcontextprotocol/sdk over Streamable HTTP. Make sure assets are built
  * (pnpm run build) so the widget HTML is available in /assets before starting.
  */
 import {
@@ -18,7 +18,7 @@ import path from "node:path";
 import { URL, fileURLToPath } from "node:url";
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   ListResourceTemplatesRequestSchema,
@@ -48,7 +48,7 @@ const ROOT_DIR = path.resolve(__dirname, "..", "..");
 const ASSETS_DIR = path.resolve(ROOT_DIR, "assets");
 
 const TEMPLATE_URI = "ui://widget/kitchen-sink-lite.html";
-const MIME_TYPE = "text/html+skybridge";
+const MIME_TYPE = "text/html;profile=mcp-app";
 
 function readWidgetHtml(): string {
   if (!fs.existsSync(ASSETS_DIR)) {
@@ -87,23 +87,18 @@ function readWidgetHtml(): string {
 
 function toolDescriptorMeta() {
   return {
-    "openai/outputTemplate": TEMPLATE_URI,
+    ui: {
+      resourceUri: TEMPLATE_URI,
+      visibility: ["model", "app"],
+    },
     "openai/toolInvocation/invoking": "Preparing the kitchen sink widget",
     "openai/toolInvocation/invoked": "Widget rendered",
-    "openai/widgetAccessible": true,
   } as const;
-}
-
-function toolInvocationMeta(invocation: string) {
-  return {
-    ...toolDescriptorMeta(),
-    invocation,
-  };
 }
 
 const widgetHtml = readWidgetHtml();
 
-const toolInputSchema = {
+const toolInputSchema: Tool["inputSchema"] = {
   type: "object",
   properties: {
     message: {
@@ -121,16 +116,16 @@ const toolInputSchema = {
   },
   required: ["message"],
   additionalProperties: false,
-} as const;
+};
 
-const refreshInputSchema = {
+const refreshInputSchema: Tool["inputSchema"] = {
   type: "object",
   properties: {
     message: { type: "string", description: "Message to echo back." },
   },
   required: ["message"],
   additionalProperties: false,
-} as const;
+};
 
 const showParser = z.object({
   message: z.string(),
@@ -142,12 +137,46 @@ const refreshParser = z.object({
   message: z.string(),
 });
 
+const showOutputSchema: NonNullable<Tool["outputSchema"]> = {
+  type: "object",
+  properties: {
+    message: { type: "string" },
+    accentColor: { type: "string" },
+    details: { type: "string" },
+    fromTool: { type: "string" },
+    processedAt: { type: "string" },
+    echoed: { type: "string" },
+  },
+  required: [
+    "message",
+    "accentColor",
+    "details",
+    "fromTool",
+    "processedAt",
+    "echoed",
+  ],
+  additionalProperties: false,
+};
+
+const refreshOutputSchema: NonNullable<Tool["outputSchema"]> = {
+  type: "object",
+  properties: {
+    message: { type: "string" },
+    accentColor: { type: "string" },
+    details: { type: "string" },
+    fromTool: { type: "string" },
+  },
+  required: ["message", "accentColor", "details", "fromTool"],
+  additionalProperties: false,
+};
+
 const tools: Tool[] = [
   {
     name: "kitchen-sink-show",
     title: "Render kitchen sink widget",
     description: "Returns the widget template with the provided message.",
     inputSchema: toolInputSchema,
+    outputSchema: showOutputSchema,
     _meta: toolDescriptorMeta(),
     annotations: {
       destructiveHint: false,
@@ -160,6 +189,7 @@ const tools: Tool[] = [
     title: "Refresh from widget",
     description: "Lightweight echo tool called from the widget via callTool.",
     inputSchema: refreshInputSchema,
+    outputSchema: refreshOutputSchema,
     _meta: toolDescriptorMeta(),
     annotations: {
       destructiveHint: false,
@@ -175,7 +205,6 @@ const resources: Resource[] = [
     uri: TEMPLATE_URI,
     description: "Kitchen sink lite widget markup",
     mimeType: MIME_TYPE,
-    _meta: toolDescriptorMeta(),
   },
 ];
 
@@ -185,7 +214,6 @@ const resourceTemplates: ResourceTemplate[] = [
     uriTemplate: TEMPLATE_URI,
     description: "Kitchen sink lite widget markup",
     mimeType: MIME_TYPE,
-    _meta: toolDescriptorMeta(),
   },
 ];
 
@@ -218,7 +246,6 @@ function createKitchenSinkServer(): Server {
           uri: TEMPLATE_URI,
           mimeType: MIME_TYPE,
           text: widgetHtml,
-          _meta: toolDescriptorMeta(),
         },
       ],
     })
@@ -262,7 +289,6 @@ function createKitchenSinkServer(): Server {
             },
           ],
           structuredContent: { ...payload, processedAt, echoed },
-          _meta: toolInvocationMeta("kitchen-sink-show"),
         };
       }
 
@@ -277,7 +303,6 @@ function createKitchenSinkServer(): Server {
         return {
           content: [{ type: "text", text: payload.message }],
           structuredContent: payload,
-          _meta: toolInvocationMeta("kitchen-sink-refresh"),
         };
       }
 
@@ -286,75 +311,6 @@ function createKitchenSinkServer(): Server {
   );
 
   return server;
-}
-
-type SessionRecord = {
-  server: Server;
-  transport: SSEServerTransport;
-};
-
-const sessions = new Map<string, SessionRecord>();
-
-const ssePath = "/mcp";
-const postPath = "/mcp/messages";
-
-async function handleSseRequest(res: ServerResponse) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  const server = createKitchenSinkServer();
-  const transport = new SSEServerTransport(postPath, res);
-  const sessionId = transport.sessionId;
-
-  sessions.set(sessionId, { server, transport });
-
-  transport.onclose = async () => {
-    sessions.delete(sessionId);
-    await server.close();
-  };
-
-  transport.onerror = (error) => {
-    console.error("SSE transport error", error);
-  };
-
-  try {
-    await server.connect(transport);
-  } catch (error) {
-    sessions.delete(sessionId);
-    console.error("Failed to start SSE session", error);
-    if (!res.headersSent) {
-      res.writeHead(500).end("Failed to establish SSE connection");
-    }
-  }
-}
-
-async function handlePostMessage(
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL
-) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "content-type");
-  const sessionId = url.searchParams.get("sessionId");
-
-  if (!sessionId) {
-    res.writeHead(400).end("Missing sessionId query parameter");
-    return;
-  }
-
-  const session = sessions.get(sessionId);
-
-  if (!session) {
-    res.writeHead(404).end("Unknown session");
-    return;
-  }
-
-  try {
-    await session.transport.handlePostMessage(req, res);
-  } catch (error) {
-    console.error("Failed to process message", error);
-    if (!res.headersSent) {
-      res.writeHead(500).end("Failed to process message");
-    }
-  }
 }
 
 const portEnv = Number(process.env.PORT ?? 8000);
@@ -369,26 +325,53 @@ const httpServer = createServer(
 
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
 
-    if (
-      req.method === "OPTIONS" &&
-      (url.pathname === ssePath || url.pathname === postPath)
-    ) {
+    if (req.method === "OPTIONS" && url.pathname === "/mcp") {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers":
+          "content-type, mcp-session-id, mcp-protocol-version",
+        "Access-Control-Expose-Headers": "Mcp-Session-Id",
       });
       res.end();
       return;
     }
 
-    if (req.method === "GET" && url.pathname === ssePath) {
-      await handleSseRequest(res);
+    if (
+      url.pathname === "/mcp" &&
+      req.method &&
+      new Set(["GET", "POST", "DELETE"]).has(req.method)
+    ) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+
+      const server = createKitchenSinkServer();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined,
+        enableJsonResponse: true,
+      });
+
+      res.on("close", () => {
+        void transport.close();
+        void server.close();
+      });
+
+      try {
+        await server.connect(transport);
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        console.error("Error handling MCP request:", error);
+        if (!res.headersSent) {
+          res.writeHead(500).end("Internal server error");
+        }
+      }
       return;
     }
 
-    if (req.method === "POST" && url.pathname === postPath) {
-      await handlePostMessage(req, res, url);
+    if (req.method === "GET" && url.pathname === "/") {
+      res
+        .writeHead(200, { "content-type": "text/plain" })
+        .end("Kitchen Sink MCP server");
       return;
     }
 
@@ -402,9 +385,7 @@ httpServer.on("clientError", (err: Error, socket) => {
 });
 
 httpServer.listen(port, () => {
-  console.log(`Kitchen Sink MCP server listening on http://localhost:${port}`);
-  console.log(`  SSE stream: GET http://localhost:${port}${ssePath}`);
   console.log(
-    `  Message post endpoint: POST http://localhost:${port}${postPath}?sessionId=...`
+    `Kitchen Sink MCP server listening at http://localhost:${port}/mcp (Streamable HTTP)`
   );
 });
